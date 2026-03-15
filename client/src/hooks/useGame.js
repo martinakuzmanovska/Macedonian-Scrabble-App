@@ -1,23 +1,45 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
-/**
- * useGame
- *
- * Handles all communication with /api/games.
- * The game component never talks to the server directly —
- * it dispatches actions through this hook.
- *
- * Usage:
- *   const { gameId, gameState, loading, error, createGame, joinGame, sendAction } = useGame();
- */
+const SESSION_KEY = "mk-scrabble-gameid";
+
 export function useGame() {
-  const [gameId,    setGameId]    = useState(null);
+  // If a ?join= param is present, clear any saved game immediately
+  // so the restore doesn't race with the join.
+  const hasJoinParam = new URLSearchParams(window.location.search).has("join");
+  if (hasJoinParam) sessionStorage.removeItem(SESSION_KEY);
+
+  const [gameId,    setGameId]    = useState(() =>
+    hasJoinParam ? null : sessionStorage.getItem(SESSION_KEY)
+  );
   const [gameState, setGameState] = useState(null);
   const [loading,   setLoading]   = useState(false);
   const [error,     setError]     = useState(null);
 
-  // ── Helpers ──────────────────────────────────
+  // On mount: if we have a saved gameId, reload it from the server
+  useEffect(() => {
+    if (hasJoinParam) return; // joining via link — don't restore old game
+    const saved = sessionStorage.getItem(SESSION_KEY);
+    if (!saved) return;
+    setLoading(true);
+    fetch(`/api/games/${saved}`, { credentials: "include" })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          setGameState(data.state);
+          setGameId(data.gameId);
+        } else {
+          sessionStorage.removeItem(SESSION_KEY);
+          setGameId(null);
+        }
+      })
+      .catch(() => {
+        sessionStorage.removeItem(SESSION_KEY);
+        setGameId(null);
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
+  // ── Helpers ──────────────────────────────────
   const apiFetch = useCallback(async (path, options = {}) => {
     const res = await fetch(path, {
       ...options,
@@ -34,15 +56,11 @@ export function useGame() {
     setGameState(data.state);
     setGameId(data.gameId);
     setError(null);
+    sessionStorage.setItem(SESSION_KEY, data.gameId);
     return data.state;
   }, []);
 
   // ── Create ───────────────────────────────────
-
-  /**
-   * Create a new game.
-   * @param {Array} players  [{ name, age, type, userId?, avatar? }]
-   */
   const createGame = useCallback(async (players) => {
     setLoading(true);
     setError(null);
@@ -58,11 +76,6 @@ export function useGame() {
   }, [apiFetch, handleResult]);
 
   // ── Join ─────────────────────────────────────
-
-  /**
-   * Join an existing game by invite code.
-   * @param {string} inviteGameId
-   */
   const joinGame = useCallback(async (inviteGameId) => {
     setLoading(true);
     setError(null);
@@ -78,11 +91,6 @@ export function useGame() {
   }, [apiFetch, handleResult]);
 
   // ── Load ─────────────────────────────────────
-
-  /**
-   * Load an existing game (e.g. on page refresh).
-   * @param {string} inviteGameId
-   */
   const loadGame = useCallback(async (inviteGameId) => {
     setLoading(true);
     setError(null);
@@ -98,14 +106,6 @@ export function useGame() {
   }, [apiFetch, handleResult]);
 
   // ── Send action ──────────────────────────────
-
-  /**
-   * Send a turn action to the server.
-   * The server runs it through the engine and returns the new state.
-   *
-   * @param {string} action   e.g. "place", "remove", "confirm", "pass", etc.
-   * @param {Object} payload  action-specific data
-   */
   const sendAction = useCallback(async (action, payload = {}) => {
     if (!gameId) return null;
     setError(null);
@@ -123,8 +123,8 @@ export function useGame() {
   }, [gameId, apiFetch]);
 
   // ── Clear ────────────────────────────────────
-
   const clearGame = useCallback(() => {
+    sessionStorage.removeItem(SESSION_KEY);
     setGameId(null);
     setGameState(null);
     setError(null);

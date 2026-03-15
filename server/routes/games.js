@@ -1,9 +1,8 @@
 import express from "express";
 import { requireAuth } from "../middleware/requireAuth.js";
+import Game from "../models/Game.js";
 import {
   createGame,
-  joinGame,
-  loadGame,
   placeTileAction,
   removeTileAction,
   assignJokerAction,
@@ -15,78 +14,96 @@ import {
 } from "../services/gameService.js";
 
 const router = express.Router();
-
-// All game routes require authentication
 router.use(requireAuth);
 
-// ── Create a new game ─────────────────────────
-// POST /api/games
-// Body: { players: [{ name, age, type, userId?, avatar? }] }
+// ── Create ────────────────────────────────────
 router.post("/", async (req, res) => {
   try {
     const { players } = req.body;
     if (!players?.length) {
-      return res.status(400).json({ error: "players array is required" });
+      return res.status(400).json({ success: false, error: "players array is required" });
     }
-
-    // Ensure the creator is player 0
     const setupPlayers = players.map((p, i) => ({
       ...p,
       userId: i === 0 ? req.user._id : (p.userId ?? null),
       name:   i === 0 ? req.user.displayName : p.name,
       avatar: i === 0 ? req.user.avatar : (p.avatar ?? null),
     }));
-
     const doc = await createGame(req.user, setupPlayers);
     res.json({ success: true, gameId: doc.gameId, state: doc.toEngineState() });
   } catch (err) {
     console.error("createGame error:", err);
-    res.status(500).json({ error: "Failed to create game" });
+    res.status(500).json({ success: false, error: "Failed to create game" });
   }
 });
 
-// ── Join an existing game ─────────────────────
-// POST /api/games/:gameId/join
+// ── Join ──────────────────────────────────────
 router.post("/:gameId/join", async (req, res) => {
   try {
-    const result = await joinGame(req.params.gameId, req.user);
-    if (typeof result === "string") {
-      return res.status(400).json({ error: result });
-    }
-    res.json({ success: true, gameId: result.gameId, state: result.toEngineState() });
-  } catch (err) {
-    console.error("joinGame error:", err);
-    res.status(500).json({ error: "Failed to join game" });
-  }
-});
+    const game = await Game.findOne({ gameId: req.params.gameId });
+    if (!game) return res.status(404).json({ success: false, error: "Игрта не е пронајдена." });
 
-// ── Load a game ───────────────────────────────
-// GET /api/games/:gameId
-router.get("/:gameId", async (req, res) => {
-  try {
-    const loaded = await loadGame(req.params.gameId);
-    if (!loaded) return res.status(404).json({ error: "Game not found" });
-
-    const { doc, state } = loaded;
-
-    // Only players in the game can load it
-    const inGame = doc.players.some(
+    // Already in the game — just return current state (idempotent)
+    const alreadyIn = game.players.some(
       p => p.userId && p.userId.toString() === req.user._id.toString()
     );
-    if (!inGame) return res.status(403).json({ error: "Not in this game" });
+    if (alreadyIn) {
+      return res.json({ success: true, gameId: game.gameId, state: game.toEngineState() });
+    }
 
-    res.json({ success: true, gameId: doc.gameId, state });
+    if (game.status !== "waiting") {
+      return res.status(400).json({ success: false, error: "Играта веќе започна." });
+    }
+
+    // Find first unfilled human slot (slot 0 is always the creator)
+    const slotIndex = game.players.findIndex(
+      (p, i) => i > 0 && p.type === "human" && !p.userId
+    );
+    if (slotIndex === -1) {
+      return res.status(400).json({ success: false, error: "Играта е полна." });
+    }
+
+    game.players[slotIndex].userId      = req.user._id;
+    game.players[slotIndex].displayName = req.user.displayName;
+    game.players[slotIndex].avatar      = req.user.avatar ?? null;
+
+    // Start game if all human slots filled
+    const allFilled = game.players.every(p => p.type === "ai" || p.userId);
+    if (allFilled) game.status = "playing";
+
+    game.updatedAt = new Date();
+    await game.save();
+
+    res.json({ success: true, gameId: game.gameId, state: game.toEngineState() });
   } catch (err) {
-    console.error("loadGame error:", err);
-    res.status(500).json({ error: "Failed to load game" });
+    console.error("joinGame error:", err);
+    res.status(500).json({ success: false, error: "Failed to join game" });
   }
 });
 
-// ── List games for the current user ──────────
-// GET /api/games
+// ── Load ──────────────────────────────────────
+router.get("/:gameId", async (req, res) => {
+  try {
+    const game = await Game.findOne({ gameId: req.params.gameId });
+    if (!game) return res.status(404).json({ success: false, error: "Game not found" });
+
+    const inGame    = game.players.some(p => p.userId?.toString() === req.user._id.toString());
+    const isCreator = game.createdBy.toString() === req.user._id.toString();
+    if (!inGame && !isCreator) {
+      return res.status(403).json({ success: false, error: "Not in this game" });
+    }
+
+    const state = game.toEngineState();
+    res.json({ success: true, gameId: game.gameId, state });
+  } catch (err) {
+    console.error("loadGame error:", err);
+    res.status(500).json({ success: false, error: "Failed to load game" });
+  }
+});
+
+// ── List active games for current user ────────
 router.get("/", async (req, res) => {
   try {
-    const { Game } = await import("../models/Game.js");
     const games = await Game.find({
       "players.userId": req.user._id,
       status: { $in: ["waiting", "playing"] },
@@ -94,69 +111,107 @@ router.get("/", async (req, res) => {
     .select("gameId status players createdAt updatedAt")
     .sort({ updatedAt: -1 })
     .limit(20);
-
     res.json({ success: true, games });
   } catch (err) {
-    console.error("listGames error:", err);
-    res.status(500).json({ error: "Failed to list games" });
+    res.status(500).json({ success: false, error: "Failed to list games" });
   }
 });
 
 // ── Turn actions ──────────────────────────────
-// All follow the same pattern:
-//   POST /api/games/:gameId/<action>
-//   Body: action-specific payload
-//   Response: { success, state } or { error }
-
-async function handleAction(res, actionResult) {
-  if (typeof actionResult === "string") {
-    return res.status(400).json({ error: actionResult });
+async function handleAction(res, actionPromise) {
+  try {
+    const result = await actionPromise;
+    if (typeof result === "string") return res.status(400).json({ success: false, error: result });
+    res.json({ success: true, state: result.state });
+  } catch (err) {
+    console.error("action error:", err);
+    res.status(500).json({ success: false, error: "Action failed" });
   }
-  res.json({ success: true, state: actionResult.state });
 }
 
-router.post("/:gameId/place", async (req, res) => {
-  const { row, col, tile, displayLetter } = req.body;
-  const result = await placeTileAction(req.params.gameId, req.user._id, row, col, tile, displayLetter);
-  handleAction(res, result);
-});
-
-router.post("/:gameId/remove", async (req, res) => {
-  const { row, col } = req.body;
-  const result = await removeTileAction(req.params.gameId, req.user._id, row, col);
-  handleAction(res, result);
-});
-
-router.post("/:gameId/joker", async (req, res) => {
-  const { tileId, letter } = req.body;
-  const result = await assignJokerAction(req.params.gameId, req.user._id, tileId, letter);
-  handleAction(res, result);
-});
-
-router.post("/:gameId/confirm", async (req, res) => {
-  const result = await confirmPlacementAction(req.params.gameId, req.user._id);
-  handleAction(res, result);
-});
-
+router.post("/:gameId/place",     (req, res) => { const { row, col, tile, displayLetter } = req.body; handleAction(res, placeTileAction(req.params.gameId, req.user._id, row, col, tile, displayLetter)); });
+router.post("/:gameId/remove",    (req, res) => { const { row, col } = req.body; handleAction(res, removeTileAction(req.params.gameId, req.user._id, row, col)); });
+router.post("/:gameId/joker",     (req, res) => { const { tileId, letter } = req.body; handleAction(res, assignJokerAction(req.params.gameId, req.user._id, tileId, letter)); });
+router.post("/:gameId/confirm",   (req, res) => handleAction(res, confirmPlacementAction(req.params.gameId, req.user._id)));
 router.post("/:gameId/finalize", async (req, res) => {
-  const result = await finalizeTurnAction(req.params.gameId, req.user._id);
-  handleAction(res, result);
-});
+  try {
+    const game = await Game.findOne({ gameId: req.params.gameId });
+    if (!game) return res.status(404).json({ success: false, error: "Game not found" });
 
-router.post("/:gameId/pass", async (req, res) => {
-  const result = await passTurnAction(req.params.gameId, req.user._id);
-  handleAction(res, result);
-});
+    const state = game.toEngineState();
+    const cp = state.players[state.currentPlayerIndex];
+    if (!cp?.userId || cp.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, error: "Not your turn" });
+    }
 
-router.post("/:gameId/exchange", async (req, res) => {
-  const result = await exchangeTilesAction(req.params.gameId, req.user._id);
-  handleAction(res, result);
-});
+    const { placedTiles, board, turnScore, formedWords } = req.body;
+    const score = Number(turnScore) || 0;
 
-router.post("/:gameId/challenge", async (req, res) => {
-  const { isValid } = req.body;
-  const result = await challengeResultAction(req.params.gameId, req.user._id, isValid);
-  handleAction(res, result);
+    // Build updated players array — award score and remove placed tiles from rack
+    const placedTileIds = new Set((placedTiles ?? []).map(pt => pt.tile?.id).filter(Boolean));
+    const players = state.players.map((p, i) => {
+      if (i !== state.currentPlayerIndex) return p;
+      const newRack = p.rack.filter(t => !placedTileIds.has(t.id));
+      return { ...p, score: (p.score || 0) + score, rack: newRack };
+    });
+
+    // Draw new tiles for current player
+    const bagCopy = [...state.tileBag];
+    const needed = 7 - players[state.currentPlayerIndex].rack.length;
+    const drawn = bagCopy.splice(0, Math.min(needed, bagCopy.length));
+    players[state.currentPlayerIndex] = {
+      ...players[state.currentPlayerIndex],
+      rack: [...players[state.currentPlayerIndex].rack, ...drawn],
+    };
+
+    // Confirm board
+    const newBoard = board ?? state.board;
+    const newConfirmed = newBoard.map(r => r.map(c => c ? { ...c } : null));
+
+    // Log
+    const wordStr = Array.isArray(formedWords) ? formedWords.join(', ') : '';
+    const newLog = [...(state.gameLog ?? []), `${cp.displayName}: ${wordStr} (+${score})`];
+
+    // Advance to next player (skip skipPenalty players)
+    let next = (state.currentPlayerIndex + 1) % players.length;
+    for (let attempts = 0; attempts < players.length; attempts++) {
+      if (!players[next].skipPenalty) break;
+      players[next] = { ...players[next], skipPenalty: false };
+      next = (next + 1) % players.length;
+    }
+
+    // Check end game
+    const gameOver = bagCopy.length === 0 &&
+      players[state.currentPlayerIndex].rack.length === 0;
+
+    const newState = {
+      ...state,
+      players,
+      tileBag: bagCopy,
+      board: newBoard,
+      confirmedBoard: newConfirmed,
+      currentPlayerIndex: next,
+      isFirstMove: false,
+      consecutivePasses: 0,
+      placedTiles: [],
+      turnScore: 0,
+      formedWords: [],
+      gameLog: newLog,
+      status: gameOver ? 'gameOver' : 'playing',
+    };
+
+    Object.assign(game, Game.fromEngineState(newState));
+    await game.save();
+
+    console.log(`Finalized turn: game=${game.gameId} next=${next} bag=${bagCopy.length}`);
+    res.json({ success: true, gameId: game.gameId, state: game.toEngineState() });
+  } catch (err) {
+    console.error("finalize error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
+router.post("/:gameId/pass",      (req, res) => handleAction(res, passTurnAction(req.params.gameId, req.user._id)));
+router.post("/:gameId/exchange",  (req, res) => handleAction(res, exchangeTilesAction(req.params.gameId, req.user._id)));
+router.post("/:gameId/challenge", (req, res) => { const { isValid } = req.body; handleAction(res, challengeResultAction(req.params.gameId, req.user._id, isValid)); });
 
 export default router;

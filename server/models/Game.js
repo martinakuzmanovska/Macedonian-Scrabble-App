@@ -128,22 +128,23 @@ gameSchema.statics.fromEngineState = function(state, extra = {}) {
  * that the engine functions can work with.
  */
 gameSchema.methods.toEngineState = function() {
+  const plain = JSON.parse(JSON.stringify(this.toObject()));
   return {
-    status:             this.status === "finished" ? "gameOver" : this.status,
-    players:            this.players.map(p => p.toObject()),
-    currentPlayerIndex: this.currentPlayerIndex,
-    board:              JSON.parse(this.boardJSON),
-    confirmedBoard:     JSON.parse(this.confirmedBoardJSON),
-    tileBag:            this.tileBag.map(t => t.toObject()),
-    jokerAssignments:   this.jokerAssignments,
-    placedTiles:        this.placedTiles.map(p => p.toObject()),
-    turnScore:          this.turnScore,
-    formedWords:        JSON.parse(this.formedWordsJSON),
-    isFirstMove:        this.isFirstMove,
-    consecutivePasses:  this.consecutivePasses,
-    gameLog:            this.gameLog,
-    wordRecords:        JSON.parse(this.wordRecordsJSON),
-    endBonuses:         JSON.parse(this.endBonusesJSON),
+    status:             plain.status === "finished" ? "gameOver" : plain.status,
+    players:            plain.players,
+    currentPlayerIndex: plain.currentPlayerIndex,
+    board:              JSON.parse(plain.boardJSON),
+    confirmedBoard:     JSON.parse(plain.confirmedBoardJSON),
+    tileBag:            plain.tileBag,
+    jokerAssignments:   plain.jokerAssignments ?? {},
+    placedTiles:        plain.placedTiles ?? [],
+    turnScore:          plain.turnScore ?? 0,
+    formedWords:        JSON.parse(plain.formedWordsJSON ?? "[]"),
+    isFirstMove:        plain.isFirstMove,
+    consecutivePasses:  plain.consecutivePasses ?? 0,
+    gameLog:            plain.gameLog ?? [],
+    wordRecords:        JSON.parse(plain.wordRecordsJSON ?? "{}"),
+    endBonuses:         JSON.parse(plain.endBonusesJSON ?? "null"),
   };
 };
 

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useAuth } from "./hooks/useAuth.js";
 import { useGame } from "./hooks/useGame.js";
 import LoginScreen  from "./components/LoginScreen.jsx";
@@ -13,39 +13,55 @@ export default function App() {
     createGame, joinGame, loadGame, sendAction, clearGame,
   } = useGame();
 
-  // Auto-join from invite link (?join=XXXXX)
+  // Track whether we've handled the ?join= param yet
+  const joinHandled = useRef(false);
+
+  // Auto-join from ?join=CODE — but only after auth is confirmed
+  // and only once (not on every re-render)
   useEffect(() => {
-    if (!user) return;
-    const params = new URLSearchParams(window.location.search);
+    if (!user || authLoading || joinHandled.current) return;
+    const params   = new URLSearchParams(window.location.search);
     const joinCode = params.get("join");
-    if (joinCode) {
-      window.history.replaceState({}, "", window.location.pathname);
-      joinGame(joinCode);
-    }
-  }, [user]);
+    if (!joinCode) return;
 
+    joinHandled.current = true;
+    // Clean the URL immediately so refresh doesn't re-trigger
+    window.history.replaceState({}, "", window.location.pathname);
+    joinGame(joinCode);
+  }, [user, authLoading]);
+
+  // ── Loading states ────────────────────────────
   if (authLoading) return <LoadingScreen />;
-  if (!user) return <LoginScreen />;
+  if (!user)       return <LoginScreen />;
 
+  // Still restoring game from sessionStorage
+  if (gameLoading && !gameState) return <LoadingScreen />;
+
+  // ── In a game ─────────────────────────────────
   if (gameState) {
     const status = gameState.status;
 
+    // Waiting for other players
     if (status === "waiting") {
       return (
         <InviteScreen
           gameId={gameId}
           gameState={gameState}
-          onReady={() => loadGame(gameId)}
+          onReady={(freshState) => {
+            // freshState comes from the poll in InviteScreen
+            // Just reload cleanly from server so App re-renders with "playing" status
+            loadGame(gameId);
+          }}
           onCancel={clearGame}
         />
       );
     }
 
+    // Game in progress or finished
     return (
       <MacedonianScrabble
         user={user}
-        gameId={gameId}
-        initialGameState={gameState}
+        initialGameState={{ ...gameState, gameId }}
         onSendAction={sendAction}
         onLeave={clearGame}
         onLogout={logout}
@@ -53,6 +69,7 @@ export default function App() {
     );
   }
 
+  // ── Lobby ─────────────────────────────────────
   return (
     <Lobby
       user={user}

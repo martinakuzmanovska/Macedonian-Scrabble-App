@@ -54,11 +54,15 @@ export async function createGame(creatorUser, setupPlayers) {
     avatar:      setupPlayers[i]?.avatar ?? null,
   }));
 
+  // If every player is either AI or already has a userId, start immediately
+  const allReady = playersWithIds.every(p => p.type === "ai" || p.userId);
+  const status   = allReady ? "playing" : "waiting";
+
   const doc = new Game({
     gameId,
     createdBy: creatorUser._id,
     ...Game.fromEngineState(
-      { ...engineState, players: playersWithIds, status: "waiting" }
+      { ...engineState, players: playersWithIds, status }
     ),
   });
 
