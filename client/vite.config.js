@@ -4,8 +4,10 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   server: {
+    host: true,
+    allowedHosts: ['maximus-eudiometric-teughly.ngrok-free.dev'],
     proxy: {
-      '/api': 'http://localhost:3000'
+      '/api': 'https://net-stack-fruit-gone.trycloudflare.com/'
     }
   },
   plugins: [

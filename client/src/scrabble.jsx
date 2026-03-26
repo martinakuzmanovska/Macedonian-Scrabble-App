@@ -384,6 +384,7 @@ export default function MacedonianScrabble({ initialGameState, user, onLeave } =
   const gameIdRef = useRef(initialGameState?.gameId ?? null);
   const isMyTurnRef = useRef(false);
   const placedTilesRef = useRef([]);
+  const screenRef = useRef(screen);
 
   useEffect(() => { loadLeaderboard().then(setLeaderboard); }, []);
 
@@ -407,6 +408,7 @@ export default function MacedonianScrabble({ initialGameState, user, onLeave } =
   // Keep refs in sync with state
   useEffect(() => { isMyTurnRef.current = isMyTurn; }, [isMyTurn]);
   useEffect(() => { placedTilesRef.current = placedTiles; }, [placedTiles]);
+  useEffect(() => { screenRef.current = screen; }, [screen]);
 
   // Poll for updates — always runs in multiplayer, applies state when it changes
   useEffect(() => {
@@ -425,18 +427,41 @@ export default function MacedonianScrabble({ initialGameState, user, onLeave } =
       setIsFirstMove(s.isFirstMove ?? false);
       setConsecutivePasses(s.consecutivePasses ?? 0);
       setJokerAssignments(s.jokerAssignments ?? {});
+      setTurnScore(s.turnScore ?? 0);
+      if (s.status === 'gameOver') { setScreen('gameOver'); return; }
+
+      // Determine my index from the live players list
+      const myUid = user?._id ?? user?.id ?? '';
+      const myIdx = normalizedPlayers.findIndex(p => p.userId?.toString() === myUid.toString());
+      const iAmCurrentPlayer = myIdx === (s.currentPlayerIndex ?? 0);
+
+      if (s.status === 'challenge') {
+        // Restore formedWords and placedTiles from server state for challenge display
+        setFormedWords(s.formedWords ?? []);
+        setPlacedTiles(s.placedTiles ?? []);
+        if (!iAmCurrentPlayer) {
+          // I am the opponent — show challenge screen
+          const mover = normalizedPlayers[s.currentPlayerIndex ?? 0];
+          const wl = (s.formedWords ?? []).map(w => w.word || w).join(', ');
+          setMessage(`${mover?.name}: ${wl} = ${s.turnScore ?? 0} п.`);
+          setScreen('challenge');
+        }
+        // If I am the current player, stay on waitingChallenge
+        return;
+      }
+
+      // Normal playing state
       setPlacedTiles([]);
       setFormedWords([]);
-      setTurnScore(0);
-      if (s.status === 'gameOver') { setScreen('gameOver'); return; }
       const cp = normalizedPlayers[s.currentPlayerIndex ?? 0];
       if (cp) setMessage(`${cp.name} — твој ред!`);
       setScreen('playing');
     };
 
     const interval = setInterval(async () => {
-      // Skip polling during our own active turn (we control state locally)
-      if (isMyTurnRef.current && placedTilesRef.current.length > 0) return;
+      // Skip polling only when actively placing tiles on board
+      if (screenRef.current === 'gameOver') return;
+      if (isMyTurnRef.current && placedTilesRef.current.length > 0 && screenRef.current === 'playing') return;
       try {
         const res = await fetch(`/api/games/${gameIdRef.current}`, { credentials: 'include' });
         const data = await res.json();
@@ -611,12 +636,41 @@ export default function MacedonianScrabble({ initialGameState, user, onLeave } =
     return null;
   };
 
-  const confirmPlacement = () => {
+  const confirmPlacement = async () => {
     console.log('confirmPlacement called, hasServerGame:', hasServerGame, 'placedTiles:', placedTiles.length);
     const err = validatePlacement(); if (err) { setMessage(err); return; }
-    // In server (multiplayer) games, skip the challenge screen entirely —
-    // finalize immediately. Opponents see the result via polling.
-    if (hasServerGame) { console.log('calling finalizeTurn'); finalizeTurn(); return; }
+
+    if (hasServerGame) {
+      // POST pending move to server — opponent will see challenge screen via polling
+      try {
+        setMessage('⏳ Чекај одлука од противникот...');
+        const res = await fetch(`/api/games/${initialGameState.gameId}/confirm`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            placedTiles,
+            board,
+            turnScore,
+            formedWords: formedWords.map(w => w.word),
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          // Show waiting message — polling will update when opponent decides
+          const wl = formedWords.map(w => w.word).join(', ');
+          setMessage(`⏳ ${players[currentPlayer].name}: ${wl} (${turnScore} п.) — чека потврда...`);
+          setScreen('waitingChallenge');
+        } else {
+          setMessage(`⚠️ Грешка: ${data.error}`);
+        }
+      } catch (err) {
+        setMessage('⚠️ Грешка при поднесување.');
+        console.error(err);
+      }
+      return;
+    }
+
     const otherHumans = players.filter((p, i) => i !== currentPlayer && p.type === 'human');
     if (!otherHumans.length) { finalizeTurn(); return; }
     const wl = formedWords.map(w => w.word).join(', ');
@@ -715,7 +769,7 @@ export default function MacedonianScrabble({ initialGameState, user, onLeave } =
     console.log('finalizeTurn called, hasServerGame:', hasServerGame, 'gameId:', initialGameState?.gameId);
     SFX.wordSuccess();
 
-    // In multiplayer games, send the move to the server and let it compute the new state
+    // In multiplayer games, the opponent calls finalize to accept the move
     if (hasServerGame && initialGameState?.gameId) {
       try {
         setMessage('💾 Зачувување...');
@@ -723,12 +777,7 @@ export default function MacedonianScrabble({ initialGameState, user, onLeave } =
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            placedTiles,
-            board,
-            turnScore,
-            formedWords: formedWords.map(w => w.word),
-          }),
+          body: JSON.stringify({}),
         });
         const data = await res.json();
         if (data.success) {
@@ -1132,6 +1181,20 @@ export default function MacedonianScrabble({ initialGameState, user, onLeave } =
       </div>
     );
   }
+
+  // ═══════════════════════════════════════════
+  // WAITING FOR CHALLENGE DECISION (multiplayer)
+  // ═══════════════════════════════════════════
+  if (screen === 'waitingChallenge') return (
+    <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ ...S.card, padding: '40px 32px', maxWidth: 420, textAlign: 'center' }}>
+        <div style={{ fontSize: 36, marginBottom: 12 }}>⏳</div>
+        <div style={{ color: S.gold, fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Чека одлука...</div>
+        <div style={{ color: '#a89070', fontSize: 13, marginBottom: 16 }}>{message}</div>
+        <div style={{ color: '#665040', fontSize: 11 }}>Противникот одлучува дали да предизвика</div>
+      </div>
+    </div>
+  );
 
   // ═══════════════════════════════════════════
   // MAIN GAME
