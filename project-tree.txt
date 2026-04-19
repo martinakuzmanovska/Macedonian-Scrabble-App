@@ -1,0 +1,61 @@
+Folder path C:\Users\mkuzm\Desktop\scrabble-app
+
++---client
+|   +---public
+|   |   \---vite.svg
+|   +---src
+|   |   +---assets
+|   |   |   \---react.svg
+|   |   +---components
+|   |   |   +---InviteScreen.jsx
+|   |   |   +---Lobby.jsx
+|   |   |   \---LoginScreen.jsx
+|   |   +---game
+|   |   |   +---constants.js
+|   |   |   +---gameEngine.js
+|   |   |   \---gameState.js
+|   |   +---hooks
+|   |   |   +---useAuth.js
+|   |   |   \---useGame.js
+|   |   +---App.css
+|   |   +---App.jsx
+|   |   +---index.css
+|   |   +---main.jsx
+|   |   +---scrabble.jsx
+|   |   \---test.js
+|   +---.gitignore
+|   +---eslint.config.js
+|   +---index.html
+|   +---package.json
+|   +---package-lock.json
+|   +---README.md
+|   \---vite.config.js
++---server
+|   +---config
+|   |   \---passport.js
+|   +---game
+|   |   +---constants.js
+|   |   +---gameEngine.js
+|   |   \---gameState.js
+|   +---middleware
+|   |   \---requireAuth.js
+|   +---models
+|   |   +---Game.js
+|   |   +---User.js
+|   |   \---Word.js
+|   +---routes
+|   |   +---aiMove.js
+|   |   +---auth.js
+|   |   +---challenge.js
+|   |   +---games.js
+|   |   \---wordInfo.js
+|   +---services
+|   |   +---challengeService.js
+|   |   +---gameService.js
+|   |   \---scraper.js
+|   +---.env
+|   +---app.js
+|   +---package.json
+|   \---package-lock.json
++---.gitignore
+\---project-tree.txt

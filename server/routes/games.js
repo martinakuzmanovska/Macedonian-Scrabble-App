@@ -21,12 +21,14 @@ router.post("/", async (req, res) => {
   try {
     const { players } = req.body;
     if (!players?.length) {
-      return res.status(400).json({ success: false, error: "players array is required" });
+      return res
+        .status(400)
+        .json({ success: false, error: "players array is required" });
     }
     const setupPlayers = players.map((p, i) => ({
       ...p,
       userId: i === 0 ? req.user._id : (p.userId ?? null),
-      name:   i === 0 ? req.user.displayName : p.name,
+      name: i === 0 ? req.user.displayName : p.name,
       avatar: i === 0 ? req.user.avatar : (p.avatar ?? null),
     }));
     const doc = await createGame(req.user, setupPlayers);
@@ -41,40 +43,53 @@ router.post("/", async (req, res) => {
 router.post("/:gameId/join", async (req, res) => {
   try {
     const game = await Game.findOne({ gameId: req.params.gameId });
-    if (!game) return res.status(404).json({ success: false, error: "Игрта не е пронајдена." });
+    if (!game)
+      return res
+        .status(404)
+        .json({ success: false, error: "Игрта не е пронајдена." });
 
     // Already in the game — just return current state (idempotent)
     const alreadyIn = game.players.some(
-      p => p.userId && p.userId.toString() === req.user._id.toString()
+      (p) => p.userId && p.userId.toString() === req.user._id.toString(),
     );
     if (alreadyIn) {
-      return res.json({ success: true, gameId: game.gameId, state: game.toEngineState() });
+      return res.json({
+        success: true,
+        gameId: game.gameId,
+        state: game.toEngineState(),
+      });
     }
 
     if (game.status !== "waiting") {
-      return res.status(400).json({ success: false, error: "Играта веќе започна." });
+      return res
+        .status(400)
+        .json({ success: false, error: "Играта веќе започна." });
     }
 
     // Find first unfilled human slot (slot 0 is always the creator)
     const slotIndex = game.players.findIndex(
-      (p, i) => i > 0 && p.type === "human" && !p.userId
+      (p, i) => i > 0 && p.type === "human" && !p.userId,
     );
     if (slotIndex === -1) {
       return res.status(400).json({ success: false, error: "Играта е полна." });
     }
 
-    game.players[slotIndex].userId      = req.user._id;
+    game.players[slotIndex].userId = req.user._id;
     game.players[slotIndex].displayName = req.user.displayName;
-    game.players[slotIndex].avatar      = req.user.avatar ?? null;
+    game.players[slotIndex].avatar = req.user.avatar ?? null;
 
     // Start game if all human slots filled
-    const allFilled = game.players.every(p => p.type === "ai" || p.userId);
+    const allFilled = game.players.every((p) => p.type === "ai" || p.userId);
     if (allFilled) game.status = "playing";
 
     game.updatedAt = new Date();
     await game.save();
 
-    res.json({ success: true, gameId: game.gameId, state: game.toEngineState() });
+    res.json({
+      success: true,
+      gameId: game.gameId,
+      state: game.toEngineState(),
+    });
   } catch (err) {
     console.error("joinGame error:", err);
     res.status(500).json({ success: false, error: "Failed to join game" });
@@ -85,12 +100,17 @@ router.post("/:gameId/join", async (req, res) => {
 router.get("/:gameId", async (req, res) => {
   try {
     const game = await Game.findOne({ gameId: req.params.gameId });
-    if (!game) return res.status(404).json({ success: false, error: "Game not found" });
+    if (!game)
+      return res.status(404).json({ success: false, error: "Game not found" });
 
-    const inGame    = game.players.some(p => p.userId?.toString() === req.user._id.toString());
+    const inGame = game.players.some(
+      (p) => p.userId?.toString() === req.user._id.toString(),
+    );
     const isCreator = game.createdBy.toString() === req.user._id.toString();
     if (!inGame && !isCreator) {
-      return res.status(403).json({ success: false, error: "Not in this game" });
+      return res
+        .status(403)
+        .json({ success: false, error: "Not in this game" });
     }
 
     const state = game.toEngineState();
@@ -108,9 +128,9 @@ router.get("/", async (req, res) => {
       "players.userId": req.user._id,
       status: { $in: ["waiting", "playing"] },
     })
-    .select("gameId status players createdAt updatedAt")
-    .sort({ updatedAt: -1 })
-    .limit(20);
+      .select("gameId status players createdAt updatedAt")
+      .sort({ updatedAt: -1 })
+      .limit(20);
     res.json({ success: true, games });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to list games" });
@@ -121,7 +141,8 @@ router.get("/", async (req, res) => {
 async function handleAction(res, actionPromise) {
   try {
     const result = await actionPromise;
-    if (typeof result === "string") return res.status(400).json({ success: false, error: result });
+    if (typeof result === "string")
+      return res.status(400).json({ success: false, error: result });
     res.json({ success: true, state: result.state });
   } catch (err) {
     console.error("action error:", err);
@@ -129,13 +150,39 @@ async function handleAction(res, actionPromise) {
   }
 }
 
-router.post("/:gameId/place",     (req, res) => { const { row, col, tile, displayLetter } = req.body; handleAction(res, placeTileAction(req.params.gameId, req.user._id, row, col, tile, displayLetter)); });
-router.post("/:gameId/remove",    (req, res) => { const { row, col } = req.body; handleAction(res, removeTileAction(req.params.gameId, req.user._id, row, col)); });
-router.post("/:gameId/joker",     (req, res) => { const { tileId, letter } = req.body; handleAction(res, assignJokerAction(req.params.gameId, req.user._id, tileId, letter)); });
+router.post("/:gameId/place", (req, res) => {
+  const { row, col, tile, displayLetter } = req.body;
+  handleAction(
+    res,
+    placeTileAction(
+      req.params.gameId,
+      req.user._id,
+      row,
+      col,
+      tile,
+      displayLetter,
+    ),
+  );
+});
+router.post("/:gameId/remove", (req, res) => {
+  const { row, col } = req.body;
+  handleAction(
+    res,
+    removeTileAction(req.params.gameId, req.user._id, row, col),
+  );
+});
+router.post("/:gameId/joker", (req, res) => {
+  const { tileId, letter } = req.body;
+  handleAction(
+    res,
+    assignJokerAction(req.params.gameId, req.user._id, tileId, letter),
+  );
+});
 router.post("/:gameId/confirm", async (req, res) => {
   try {
     const game = await Game.findOne({ gameId: req.params.gameId });
-    if (!game) return res.status(404).json({ success: false, error: "Game not found" });
+    if (!game)
+      return res.status(404).json({ success: false, error: "Game not found" });
 
     const state = game.toEngineState();
     const cp = state.players[state.currentPlayerIndex];
@@ -151,14 +198,22 @@ router.post("/:gameId/confirm", async (req, res) => {
       board: board ?? state.board,
       placedTiles: placedTiles ?? [],
       turnScore: Number(turnScore) || 0,
-      formedWords: (formedWords ?? []).map(w => typeof w === 'string' ? { word: w, cells: [] } : w),
-      status: 'challenge',
+      formedWords: (formedWords ?? []).map((w) =>
+        typeof w === "string" ? { word: w, cells: [] } : w,
+      ),
+      status: "challenge",
     };
 
     Object.assign(game, Game.fromEngineState(newState));
     await game.save();
-    console.log(`Confirm: game=${game.gameId} words=${formedWords} score=${turnScore}`);
-    res.json({ success: true, gameId: game.gameId, state: game.toEngineState() });
+    console.log(
+      `Confirm: game=${game.gameId} words=${formedWords} score=${turnScore}`,
+    );
+    res.json({
+      success: true,
+      gameId: game.gameId,
+      state: game.toEngineState(),
+    });
   } catch (err) {
     console.error("confirm error:", err);
     res.status(500).json({ success: false, error: err.message });
@@ -167,30 +222,45 @@ router.post("/:gameId/confirm", async (req, res) => {
 router.post("/:gameId/finalize", async (req, res) => {
   try {
     const game = await Game.findOne({ gameId: req.params.gameId });
-    if (!game) return res.status(404).json({ success: false, error: "Game not found" });
+    if (!game)
+      return res.status(404).json({ success: false, error: "Game not found" });
 
     const state = game.toEngineState();
 
     // Only the opponent (non-current-player human) can finalize
-    const isCurrentPlayer = state.players[state.currentPlayerIndex]?.userId?.toString() === req.user._id.toString();
-    const isOpponent = !isCurrentPlayer && state.players.some(p => p.userId?.toString() === req.user._id.toString());
+    const isCurrentPlayer =
+      state.players[state.currentPlayerIndex]?.userId?.toString() ===
+      req.user._id.toString();
+    const isOpponent =
+      !isCurrentPlayer &&
+      state.players.some(
+        (p) => p.userId?.toString() === req.user._id.toString(),
+      );
     // Also allow the current player to finalize if no human opponents
-    const hasHumanOpponent = state.players.some((p, i) => i !== state.currentPlayerIndex && p.type === 'human');
+    const hasHumanOpponent = state.players.some(
+      (p, i) => i !== state.currentPlayerIndex && p.type === "human",
+    );
     if (!isCurrentPlayer && !isOpponent) {
-      return res.status(403).json({ success: false, error: "Not in this game" });
+      return res
+        .status(403)
+        .json({ success: false, error: "Not in this game" });
     }
-    if (hasHumanOpponent && isCurrentPlayer && state.status === 'challenge') {
-      return res.status(403).json({ success: false, error: "Wait for opponent to accept" });
+    if (hasHumanOpponent && isCurrentPlayer && state.status === "challenge") {
+      return res
+        .status(403)
+        .json({ success: false, error: "Wait for opponent to accept" });
     }
 
     const score = state.turnScore || 0;
     const placedTiles = state.placedTiles || [];
 
     // Remove placed tiles from current player's rack
-    const placedTileIds = new Set(placedTiles.map(pt => pt.tile?.id).filter(Boolean));
+    const placedTileIds = new Set(
+      placedTiles.map((pt) => pt.tile?.id).filter(Boolean),
+    );
     const players = state.players.map((p, i) => {
       if (i !== state.currentPlayerIndex) return p;
-      const newRack = p.rack.filter(t => !placedTileIds.has(t.id));
+      const newRack = p.rack.filter((t) => !placedTileIds.has(t.id));
       return { ...p, score: (p.score || 0) + score, rack: newRack };
     });
 
@@ -204,12 +274,19 @@ router.post("/:gameId/finalize", async (req, res) => {
     ];
 
     // Confirm the board
-    const newConfirmed = state.board.map(r => r.map(c => c ? { ...c } : null));
+    const newConfirmed = state.board.map((r) =>
+      r.map((c) => (c ? { ...c } : null)),
+    );
 
     // Log
-    const wordStr = (state.formedWords ?? []).map(w => w.word || w).join(', ');
+    const wordStr = (state.formedWords ?? [])
+      .map((w) => w.word || w)
+      .join(", ");
     const cpName = state.players[state.currentPlayerIndex].displayName;
-    const newLog = [...(state.gameLog ?? []), `${cpName}: ${wordStr} (+${score})`];
+    const newLog = [
+      ...(state.gameLog ?? []),
+      `${cpName}: ${wordStr} (+${score})`,
+    ];
 
     // Advance to next player
     let next = (state.currentPlayerIndex + 1) % players.length;
@@ -219,7 +296,9 @@ router.post("/:gameId/finalize", async (req, res) => {
       next = (next + 1) % players.length;
     }
 
-    const gameOver = bagCopy.length === 0 && players[state.currentPlayerIndex].rack.length === 0;
+    const gameOver =
+      bagCopy.length === 0 &&
+      players[state.currentPlayerIndex].rack.length === 0;
 
     const newState = {
       ...state,
@@ -233,20 +312,156 @@ router.post("/:gameId/finalize", async (req, res) => {
       turnScore: 0,
       formedWords: [],
       gameLog: newLog,
-      status: gameOver ? 'gameOver' : 'playing',
+      status: gameOver ? "gameOver" : "playing",
     };
 
     Object.assign(game, Game.fromEngineState(newState));
     await game.save();
-    console.log(`Finalized: game=${game.gameId} next=${next} bag=${bagCopy.length}`);
-    res.json({ success: true, gameId: game.gameId, state: game.toEngineState() });
+    console.log(
+      `Finalized: game=${game.gameId} next=${next} bag=${bagCopy.length}`,
+    );
+    res.json({
+      success: true,
+      gameId: game.gameId,
+      state: game.toEngineState(),
+    });
   } catch (err) {
     console.error("finalize error:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
-router.post("/:gameId/pass",      (req, res) => handleAction(res, passTurnAction(req.params.gameId, req.user._id)));
-router.post("/:gameId/exchange",  (req, res) => handleAction(res, exchangeTilesAction(req.params.gameId, req.user._id)));
-router.post("/:gameId/challenge", (req, res) => { const { isValid } = req.body; handleAction(res, challengeResultAction(req.params.gameId, req.user._id, isValid)); });
+router.post("/:gameId/pass", (req, res) =>
+  handleAction(res, passTurnAction(req.params.gameId, req.user._id)),
+);
+router.post("/:gameId/exchange", (req, res) =>
+  handleAction(res, exchangeTilesAction(req.params.gameId, req.user._id)),
+);
+router.post("/:gameId/challenge", (req, res) => {
+  const { isValid } = req.body;
+  handleAction(
+    res,
+    challengeResultAction(req.params.gameId, req.user._id, isValid),
+  );
+});
+
+router.post("/:gameId/challenge-result", async (req, res) => {
+  try {
+    const game = await Game.findOne({ gameId: req.params.gameId });
+    if (!game)
+      return res.status(404).json({ success: false, error: "Game not found" });
+
+    const state = game.toEngineState();
+    const { valid } = req.body; // true = word valid (challenger loses turn), false = word invalid (tiles return)
+
+    if (valid === true) {
+      // Word IS valid — challenger (the one who challenged) loses next turn
+      // The challenger is the opponent of the current player
+      //const myIdx = state.players.findIndex(p => p.userId?.toString() === req.user._id.toString());
+      const challengerIndex =
+        (state.currentPlayerIndex + 1) % state.players.length;
+      const players = state.players.map((p, i) => {
+        if (i === challengerIndex) return { ...p, skipPenalty: true };
+        return p;
+      });
+      // Finalize the turn normally — word stands, advance to next player
+      const placedTileIds = new Set(
+        (state.placedTiles ?? []).map((pt) => pt.tile?.id).filter(Boolean),
+      );
+      const score = state.turnScore || 0;
+      const updatedPlayers = players.map((p, i) => {
+        if (i !== state.currentPlayerIndex) return p;
+        const newRack = p.rack.filter((t) => !placedTileIds.has(t.id));
+        return { ...p, score: (p.score || 0) + score, rack: newRack };
+      });
+      const bagCopy = [...state.tileBag];
+      const needed = 7 - updatedPlayers[state.currentPlayerIndex].rack.length;
+      const drawn = bagCopy.splice(0, Math.min(needed, bagCopy.length));
+      updatedPlayers[state.currentPlayerIndex].rack = [
+        ...updatedPlayers[state.currentPlayerIndex].rack,
+        ...drawn,
+      ];
+      const newConfirmed = state.board.map((r) =>
+        r.map((c) => (c ? { ...c } : null)),
+      );
+      const wordStr = (state.formedWords ?? [])
+        .map((w) => w.word || w)
+        .join(", ");
+      const cpName = state.players[state.currentPlayerIndex].displayName;
+      const newLog = [
+        ...(state.gameLog ?? []),
+        `${cpName}: ${wordStr} (+${score}) ✅`,
+      ];
+
+      // Advance — skip the challenger who just lost their turn
+      let next = (state.currentPlayerIndex + 1) % updatedPlayers.length;
+      for (let i = 0; i < updatedPlayers.length; i++) {
+        if (!updatedPlayers[next].skipPenalty) break;
+        updatedPlayers[next] = { ...updatedPlayers[next], skipPenalty: false };
+        next = (next + 1) % updatedPlayers.length;
+      }
+
+      const newState = {
+        ...state,
+        players: updatedPlayers,
+        tileBag: bagCopy,
+        confirmedBoard: newConfirmed,
+        currentPlayerIndex: next,
+        isFirstMove: false,
+        consecutivePasses: 0,
+        placedTiles: [],
+        turnScore: 0,
+        formedWords: [],
+        gameLog: newLog,
+        status: "playing",
+      };
+      Object.assign(game, Game.fromEngineState(newState));
+      await game.save();
+      return res.json({
+        success: true,
+        gameId: game.gameId,
+        state: game.toEngineState(),
+      });
+    } else {
+      // Word is NOT valid — return tiles to Player 1's rack, reset board to confirmed
+      const placedTiles = state.placedTiles ?? [];
+      const players = state.players.map((p, i) => {
+        if (i !== state.currentPlayerIndex) return p;
+        // Return placed tiles back to rack
+        return p;
+      });
+      // Reset board to confirmed state
+      const resetBoard = state.confirmedBoard.map((r) =>
+        r.map((c) => (c ? { ...c } : null)),
+      );
+      const newLog = [
+        ...(state.gameLog ?? []),
+        `${state.players[state.currentPlayerIndex].displayName}: невалиден збор — плочки вратени`,
+      ];
+
+      const next = (state.currentPlayerIndex + 1) % state.players.length;
+      const newState = {
+        ...state,
+        players,
+        board: resetBoard,
+        placedTiles: [],
+        turnScore: 0,
+        formedWords: [],
+        gameLog: newLog,
+        status: "playing",
+        currentPlayerIndex: next,
+      };
+      Object.assign(game, Game.fromEngineState(newState));
+      await game.save();
+      return res.json({
+        success: true,
+        gameId: game.gameId,
+        state: game.toEngineState(),
+      });
+    }
+  } catch (err) {
+    console.error("challenge-result error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 export default router;

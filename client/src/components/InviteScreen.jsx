@@ -1,13 +1,5 @@
 import { useState, useEffect } from "react";
 
-/**
- * InviteScreen
- *
- * Fixes:
- * 1. AI players don't need userId — isReady checks type === 'ai'
- * 2. Polls /api/games/:gameId every 3s so joining players appear live
- * 3. Auto-advances when all slots filled
- */
 export default function InviteScreen({ gameId, gameState: initialState, onReady, onCancel }) {
   const [gameState, setGameState] = useState(initialState);
   const [copied,    setCopied]    = useState(false);
@@ -17,27 +9,17 @@ export default function InviteScreen({ gameId, gameState: initialState, onReady,
     return state.players.every(p => p.type === "ai" || p.userId);
   }
 
-  // Poll for updates every 3 seconds
   useEffect(() => {
-    // If already ready (e.g. all AI game), fire immediately
-    if (isReady(initialState)) {
-      onReady(initialState);
-      return;
-    }
-
+    if (isReady(initialState)) { onReady(initialState); return; }
     const interval = setInterval(async () => {
       try {
         const res  = await fetch(`/api/games/${gameId}`, { credentials: "include" });
         const data = await res.json();
         if (!data.success) return;
         setGameState(data.state);
-        if (isReady(data.state)) {
-          clearInterval(interval);
-          onReady(data.state);
-        }
+        if (isReady(data.state)) { clearInterval(interval); onReady(data.state); }
       } catch {}
     }, 3000);
-
     return () => clearInterval(interval);
   }, [gameId]);
 
@@ -45,106 +27,75 @@ export default function InviteScreen({ gameId, gameState: initialState, onReady,
   const allFilled  = isReady(gameState);
   const inviteUrl  = `${window.location.origin}?join=${gameId}`;
 
-  const copy = (text) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const S = {
-    page: {
-      minHeight: "100vh",
-      background: "linear-gradient(140deg, #0b0f1a 0%, #162032 40%, #1a1210 100%)",
-      fontFamily: "'Palatino Linotype','Book Antiqua','Palatino',serif",
-      color: "#f0e6d3",
-      display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
-    },
-    card: {
-      background: "linear-gradient(145deg, #2a1a10, #3a2518)",
-      borderRadius: 14,
-      border: "1.5px solid rgba(212,175,55,0.25)",
-      boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-      padding: "40px 36px",
-      maxWidth: 440, width: "100%", textAlign: "center",
-    },
-    gold: "#d4af37",
-  };
+  const copy = (text) => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
   return (
-    <div style={S.page}>
-      <div style={S.card}>
-        <div style={{ fontSize: 32, marginBottom: 8 }}>🔗</div>
-        <h2 style={{ color: S.gold, margin: "0 0 6px", fontSize: 20 }}>Игра создадена!</h2>
-        <p style={{ color: "#a89070", fontSize: 12, margin: "0 0 4px" }}>
-          Сподели го овој код со останатите играчи:
-        </p>
+    <div style={{ minHeight: "100vh", background: "#080b14", fontFamily: "'DM Sans','Segoe UI',sans-serif", color: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, position: "relative", overflow: "hidden" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap');
+        @keyframes pulse-glow { 0%,100%{opacity:0.3} 50%{opacity:0.6} }
+        @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+        .copy-btn:hover { background: rgba(99,102,241,0.15) !important; border-color: rgba(99,102,241,0.4) !important; }
+        .code-block:hover { background: rgba(99,102,241,0.1) !important; }
+      `}</style>
+
+      <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(99,102,241,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.03) 1px, transparent 1px)", backgroundSize: "40px 40px", pointerEvents: "none" }} />
+      <div style={{ position: "absolute", top: "20%", left: "10%", width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle, rgba(99,102,241,0.1) 0%, transparent 70%)", animation: "pulse-glow 5s ease-in-out infinite", pointerEvents: "none" }} />
+
+      <div style={{ background: "rgba(14,19,31,0.95)", backdropFilter: "blur(12px)", borderRadius: 20, border: "1px solid rgba(99,102,241,0.18)", boxShadow: "0 32px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)", padding: "44px 40px", maxWidth: 460, width: "100%", textAlign: "center", position: "relative", zIndex: 1, animation: "fadeIn 0.3s ease" }}>
+
+        <div style={{ fontSize: 10, color: "#6366f1", letterSpacing: 5, fontWeight: 600, marginBottom: 8, textTransform: "uppercase" }}>Игра Создадена</div>
+        <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 700 }}>Покани играчи</h2>
+        <p style={{ color: "#475569", fontSize: 12, margin: "0 0 28px" }}>Сподели го овој код или линкот за покана</p>
 
         {/* Invite code */}
-        <div onClick={() => copy(gameId)} title="Клик за копирање" style={{
-          fontSize: 42, fontFamily: "monospace", letterSpacing: 10,
-          color: S.gold, background: "rgba(212,175,55,0.08)",
-          border: "1.5px solid rgba(212,175,55,0.25)", borderRadius: 10,
-          padding: "16px 24px", margin: "16px 0", cursor: "pointer",
-        }}>
+        <div className="code-block" onClick={() => copy(gameId)} title="Клик за копирање"
+          style={{ fontFamily: "'Space Mono',monospace", fontSize: 44, letterSpacing: 12, color: "#a5b4fc", background: "rgba(99,102,241,0.07)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 14, padding: "18px 24px", margin: "0 0 8px", cursor: "pointer", transition: "background 0.15s", userSelect: "none" }}>
           {gameId}
         </div>
+        <div style={{ fontSize: 10, color: copied ? "#10b981" : "#334155", marginBottom: 20, transition: "color 0.2s" }}>
+          {copied ? "✅ Копирано!" : "Клик за копирање на кодот"}
+        </div>
 
-        <p style={{ color: "#665040", fontSize: 10, marginBottom: 16 }}>
-          {copied ? "✅ Копирано!" : "Клик на кодот за копирање"}
-        </p>
-
-        <button onClick={() => copy(inviteUrl)} style={{
-          width: "100%", padding: "10px",
-          background: "rgba(41,128,185,0.2)",
-          border: "1px solid rgba(41,128,185,0.3)",
-          borderRadius: 7, color: "#3498db", fontSize: 12,
-          cursor: "pointer", fontFamily: "inherit", marginBottom: 20,
-        }}>
+        <button className="copy-btn" onClick={() => copy(inviteUrl)}
+          style={{ width: "100%", padding: "10px", background: "rgba(34,211,238,0.06)", border: "1px solid rgba(34,211,238,0.2)", borderRadius: 10, color: "#22d3ee", fontSize: 12, cursor: "pointer", fontFamily: "inherit", marginBottom: 24, transition: "all 0.15s", fontWeight: 600 }}>
           📋 Копирај линк за покана
         </button>
 
         {/* Player slots */}
-        <div style={{ marginBottom: 20 }}>
-          {gameState?.players?.map((p, i) => (
-            <div key={i} style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "8px 12px", marginBottom: 6, borderRadius: 8,
-              background: (p.userId || p.type === "ai") ? "rgba(46,204,113,0.08)" : "rgba(0,0,0,0.2)",
-              border: (p.userId || p.type === "ai")
-                ? "1px solid rgba(46,204,113,0.2)"
-                : "1px dashed rgba(255,255,255,0.1)",
-            }}>
-              <span style={{ fontSize: 14 }}>
-                {p.type === "ai" ? "🤖" : p.userId ? "✅" : "⏳"}
-              </span>
-              <span style={{ fontSize: 12, color: (p.userId || p.type === "ai") ? "#f0e6d3" : "#665040" }}>
-                {p.displayName || (p.type === "human" ? "Чека играч..." : "")}
-              </span>
-              {i === 0 && <span style={{ marginLeft: "auto", fontSize: 9, color: "#665040" }}>ти</span>}
-            </div>
-          ))}
+        <div style={{ marginBottom: 24, textAlign: "left" }}>
+          <div style={{ fontSize: 10, color: "#334155", letterSpacing: 2, fontWeight: 600, marginBottom: 10, textTransform: "uppercase" }}>Играчи</div>
+          {gameState?.players?.map((p, i) => {
+            const joined = p.userId || p.type === "ai";
+            return (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 6, borderRadius: 10, background: joined ? "rgba(16,185,129,0.06)" : "rgba(255,255,255,0.02)", border: joined ? "1px solid rgba(16,185,129,0.2)" : "1px dashed rgba(255,255,255,0.08)", transition: "all 0.3s" }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: joined ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>
+                  {p.type === "ai" ? "🤖" : p.userId ? "✅" : "⏳"}
+                </div>
+                <span style={{ fontSize: 12, color: joined ? "#f1f5f9" : "#334155", flex: 1, fontWeight: joined ? 500 : 400 }}>
+                  {p.displayName || (p.type === "human" ? "Чека играч..." : "")}
+                </span>
+                {i === 0 && <span style={{ fontSize: 9, color: "#334155", fontWeight: 600, letterSpacing: 1 }}>ТИ</span>}
+                {joined && i !== 0 && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#10b981", boxShadow: "0 0 6px #10b981" }} />}
+              </div>
+            );
+          })}
         </div>
 
         {allFilled ? (
-          <button onClick={() => onReady(gameState)} style={{
-            width: "100%", padding: 14,
-            background: "linear-gradient(135deg, #1e8449, #27ae60)",
-            border: "none", borderRadius: 7, color: "#fff",
-            fontSize: 15, cursor: "pointer", fontFamily: "inherit",
-            fontWeight: 600, letterSpacing: 2,
-          }}>
-            ЗАПОЧНИ ИГРА 🎲
+          <button onClick={() => onReady(gameState)}
+            style={{ width: "100%", padding: "14px 24px", background: "linear-gradient(135deg, #10b981, #059669)", border: "none", borderRadius: 12, color: "#fff", fontSize: 15, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, letterSpacing: 1, boxShadow: "0 4px 16px rgba(16,185,129,0.3)" }}>
+            Започни Игра 🎲
           </button>
         ) : (
-          <div style={{ color: "#887060", fontSize: 11 }}>
-            <span style={{ marginRight: 6 }}>⏳</span>
-            Чека {waitingFor.length} играч{waitingFor.length > 1 ? "и" : ""} да се приклучат...
-            <div style={{ marginTop: 16 }}>
-              <button onClick={onCancel} style={{
-                background: "none", border: "none", color: "#665040",
-                fontSize: 11, cursor: "pointer", fontFamily: "inherit",
-                textDecoration: "underline",
-              }}>
+          <div style={{ color: "#334155", fontSize: 12 }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "rgba(245,158,11,0.06)", borderRadius: 10, border: "1px solid rgba(245,158,11,0.15)", marginBottom: 16 }}>
+              <div style={{ width: 14, height: 14, border: "2px solid rgba(245,158,11,0.3)", borderTopColor: "#f59e0b", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+              <span style={{ color: "#f59e0b", fontSize: 11, fontWeight: 500 }}>Чека {waitingFor.length} играч{waitingFor.length > 1 ? "и" : ""} да се приклучат...</span>
+            </div>
+            <div>
+              <button onClick={onCancel} style={{ background: "none", border: "none", color: "#334155", fontSize: 11, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>
                 Откажи
               </button>
             </div>
