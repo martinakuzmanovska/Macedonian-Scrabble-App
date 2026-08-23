@@ -1,11 +1,26 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+async function loadLeaderboard() {
+  try {
+    const r = await window.storage.get("mk-scrabble-lb");
+    return r ? JSON.parse(r.value) : [];
+  } catch {
+    return [];
+  }
+}
 
 export default function Lobby({ user, onCreate, onJoin, onLogout, loading, error }) {
   const [tab,          setTab]          = useState("create");
   const [inviteCode,   setInviteCode]   = useState("");
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboard, setLeaderboard] = useState([]);
   const [extraPlayers, setExtraPlayers] = useState([
     { name: "Играч 2", age: 25, type: "human" },
   ]);
+
+  useEffect(() => {
+    loadLeaderboard().then(setLeaderboard);
+  }, []);
 
   const getDiff = (age) =>
     age <= 8  ? { l: "Лесно",  c: "#10b981", e: "🌱" } :
@@ -43,6 +58,45 @@ export default function Lobby({ user, onCreate, onJoin, onLogout, loading, error
 
       <div style={{ ...card, padding: "36px 32px", maxWidth: 520, width: "100%", position: "relative", zIndex: 1 }}>
 
+        {showLeaderboard && (
+          <div onClick={() => setShowLeaderboard(false)} style={{ position: "fixed", inset: 0, background: "rgba(2,6,23,0.72)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 30, padding: 20 }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 560, background: "rgba(15,23,42,0.96)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 18, boxShadow: "0 30px 90px rgba(0,0,0,0.6)", padding: 24 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+                <div>
+                  <div style={{ fontSize: 10, letterSpacing: 3, color: "#a5b4fc", marginBottom: 6 }}>РАНГИРАЊЕ</div>
+                  <div style={{ fontSize: 22, fontWeight: 700 }}>Табла на Најдобри</div>
+                </div>
+                <button onClick={() => setShowLeaderboard(false)} style={{ background: "transparent", border: "1px solid rgba(99,102,241,0.35)", color: "#cbd5e1", borderRadius: 10, padding: "8px 12px", cursor: "pointer", fontFamily: "inherit" }}>Затвори</button>
+              </div>
+
+              {!leaderboard.length ? (
+                <div style={{ textAlign: "center", padding: 32, color: "#94a3b8" }}>Сè уште нема резултати!</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "32px 1fr 60px 60px 50px 50px", gap: 8, fontSize: 10, color: "#94a3b8", letterSpacing: 1, textTransform: "uppercase", padding: "8px 12px" }}>
+                    <span>#</span>
+                    <span>Играч</span>
+                    <span style={{ textAlign: "right" }}>Најд.</span>
+                    <span style={{ textAlign: "right" }}>Прос.</span>
+                    <span style={{ textAlign: "right" }}>Игри</span>
+                    <span style={{ textAlign: "right" }}>Поб.</span>
+                  </div>
+                  {leaderboard.map((entry, index) => (
+                    <div key={entry.name + index} style={{ display: "grid", gridTemplateColumns: "32px 1fr 60px 60px 50px 50px", gap: 8, padding: "10px 12px", background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.08)", borderRadius: 10, alignItems: "center" }}>
+                      <span style={{ fontWeight: 700, color: "#a5b4fc" }}>{index + 1}</span>
+                      <span style={{ fontWeight: 600 }}>{entry.name}</span>
+                      <span style={{ textAlign: "right" }}>{entry.bestScore ?? 0}</span>
+                      <span style={{ textAlign: "right" }}>{entry.avgScore ?? 0}</span>
+                      <span style={{ textAlign: "right" }}>{entry.totalGames ?? 0}</span>
+                      <span style={{ textAlign: "right" }}>{entry.wins ?? 0}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
           <div>
@@ -53,7 +107,10 @@ export default function Lobby({ user, onCreate, onJoin, onLogout, loading, error
             {user.avatar && <img src={user.avatar} alt="" style={{ width: 34, height: 34, borderRadius: "50%", border: "2px solid rgba(99,102,241,0.3)" }} />}
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8" }}>{user.displayName}</div>
-              <button onClick={onLogout} style={{ background: "none", border: "none", color: "#334155", fontSize: 10, cursor: "pointer", padding: 0, fontFamily: "inherit", textDecoration: "underline" }}>Одјави се</button>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+                <button onClick={() => setShowLeaderboard(true)} style={{ background: "none", border: "none", color: "#a5b4fc", fontSize: 10, cursor: "pointer", padding: 0, fontFamily: "inherit", textDecoration: "underline" }}>🏆 Табла</button>
+                <button onClick={onLogout} style={{ background: "none", border: "none", color: "#334155", fontSize: 10, cursor: "pointer", padding: 0, fontFamily: "inherit", textDecoration: "underline" }}>Одјави се</button>
+              </div>
             </div>
           </div>
         </div>

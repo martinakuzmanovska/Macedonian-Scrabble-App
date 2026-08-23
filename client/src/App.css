@@ -1,9 +1,9 @@
-#root {
+/* #root {
   max-width: 1280px;
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
-}
+} */
 
 .logo {
   height: 6em;
@@ -39,4 +39,44 @@
 
 .read-the-docs {
   color: #888;
+}
+
+.game-layout {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 20px;
+  width: 80%;
+  margin: 0 auto;
+  
+}
+
+.left-column,
+.right-column {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.right-column {
+  /* background: #4b5460; */
+  max-width: 360px;
+  padding-top: 30px;
+}
+.game-log {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid #ccc;
+  padding: 10px;
+  margin: 30px auto 0;
+  background-color: #f9f9f9;
+}
+
+@media (max-width: 1024px) {
+  .game-layout {
+    flex-direction: column;
+  }
+
+  .right-column {
+    max-width: none;
+  }
 }

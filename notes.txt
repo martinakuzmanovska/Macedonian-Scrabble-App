@@ -1,0 +1,6 @@
+Notes on how things are going 
+
+Bug: After a declined word gets stuck on waiting screen 
+
+Description:
+1. Once challanged the 
