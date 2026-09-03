@@ -1,6 +1,29 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import * as Tone from "tone";
+import SetupScreen from "./components/SetupScreen.jsx";
+import GameOverScreen from "./components/GameOverScreen.jsx";
 
+import {
+  TILE_CONFIG, 
+  MK_LETTERS,
+  BONUS_MAP, 
+  BONUS_COLORS,
+  getPoints
+} from "./game/constants"
+
+import {
+  createTileBag, 
+  drawTiles, 
+  createEmptyBoard,
+} from "./game/gameState.js"
+
+import {
+  findFormedWords, 
+  calcScore, 
+  validatePlacement
+} from "./game/gameEngine.js"
+
+import { loadLeaderboard, updateLeaderboard } from "./services/leaderboardService.js";
 // ═══════════════════════════════════════════
 // SOUND SYSTEM
 // ═══════════════════════════════════════════
@@ -166,92 +189,6 @@ function playBonusSound(row, col) {
 // Drag & Drop, Речник валидација, Инфо за зборови
 // ═══════════════════════════════════════════
 
-const TILE_CONFIG = {
-  "★": { count: 2, points: 0 },
-  А: { count: 9, points: 1 },
-  Е: { count: 6, points: 1 },
-  И: { count: 7, points: 2 },
-  О: { count: 7, points: 2 },
-  Н: { count: 6, points: 2 },
-  Р: { count: 6, points: 2 },
-  С: { count: 5, points: 3 },
-  Т: { count: 5, points: 3 },
-  У: { count: 4, points: 3 },
-  В: { count: 4, points: 4 },
-  К: { count: 4, points: 4 },
-  Л: { count: 4, points: 4 },
-  П: { count: 3, points: 5 },
-  Г: { count: 2, points: 6 },
-  Д: { count: 3, points: 6 },
-  М: { count: 3, points: 6 },
-  Б: { count: 2, points: 7 },
-  З: { count: 2, points: 7 },
-  Ј: { count: 2, points: 7 },
-  Ц: { count: 2, points: 8 },
-  Ч: { count: 2, points: 8 },
-  Ж: { count: 1, points: 9 },
-  Ф: { count: 1, points: 9 },
-  Ш: { count: 1, points: 9 },
-  Ѓ: { count: 1, points: 10 },
-  Ѕ: { count: 1, points: 10 },
-  Љ: { count: 1, points: 10 },
-  Њ: { count: 1, points: 10 },
-  Ќ: { count: 1, points: 10 },
-  Џ: { count: 1, points: 10 },
-  Х: { count: 1, points: 10 },
-};
-const MK_LETTERS = "АБВГДЃЕЖЗЅИЈКЛЉМНЊОПРСТЌУФХЦЧЏШ";
-const getPoints = (l) => (!l || l === "★" ? 0 : (TILE_CONFIG[l]?.points ?? 0));
-
-const BONUS_MAP = [
-  ["", "", "", "TW", "", "", "TL", "", "TL", "", "", "TW", "", "", ""],
-  ["", "", "DL", "", "", "DW", "", "", "", "DW", "", "", "DL", "", ""],
-  ["", "DL", "", "", "DL", "", "", "", "", "", "DL", "", "", "DL", ""],
-  ["TW", "", "", "TL", "", "", "", "DW", "", "", "", "TL", "", "", "TW"],
-  ["", "", "DL", "", "", "", "DL", "", "DL", "", "", "", "DL", "", ""],
-  ["", "DW", "", "", "", "TL", "", "", "", "TL", "", "", "", "DW", ""],
-  ["TL", "", "", "", "DL", "", "", "", "", "", "DL", "", "", "", "TL"],
-  ["", "", "", "DW", "", "", "", "ST", "", "", "", "DW", "", "", ""],
-  ["TL", "", "", "", "DL", "", "", "", "", "", "DL", "", "", "", "TL"],
-  ["", "DW", "", "", "", "TL", "", "", "", "TL", "", "", "", "DW", ""],
-  ["", "", "DL", "", "", "", "DL", "", "DL", "", "", "", "DL", "", ""],
-  ["TW", "", "", "TL", "", "", "", "DW", "", "", "", "TL", "", "", "TW"],
-  ["", "DL", "", "", "DL", "", "", "", "", "", "DL", "", "", "DL", ""],
-  ["", "", "DL", "", "", "DW", "", "", "", "DW", "", "", "DL", "", ""],
-  ["", "", "", "TW", "", "", "TL", "", "TL", "", "", "TW", "", "", ""],
-];
-const BONUS_COLORS = {
-  TW: { bg: "#c0392b", label: "ТЗ" },
-  TL: { bg: "#2980b9", label: "ТБ" },
-  DW: { bg: "#e67e22", label: "ДЗ" },
-  DL: { bg: "#27ae60", label: "ДБ" },
-  ST: { bg: "#e67e22", label: "★" },
-};
-
-function createTileBag() {
-  const bag = [];
-  for (const [letter, config] of Object.entries(TILE_CONFIG)) {
-    for (let i = 0; i < config.count; i++)
-      bag.push({
-        letter,
-        points: config.points,
-        id: `${letter}-${i}-${Math.random().toString(36).slice(2, 6)}`,
-      });
-  }
-  for (let i = bag.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [bag[i], bag[j]] = [bag[j], bag[i]];
-  }
-  return bag;
-}
-function drawTiles(bag, count) {
-  return bag.splice(0, Math.min(count, bag.length));
-}
-function createEmptyBoard() {
-  return Array(15)
-    .fill(null)
-    .map(() => Array(15).fill(null));
-}
 
 // ═══════════════════════════════════════════
 // AI WORD VALIDATION — Дигитален Речник
@@ -453,41 +390,6 @@ placements = САМО нови плочки. Ако не можеш: {"word":nul
   } catch {
     return { word: null, pass: true };
   }
-}
-
-// ═══════════════════════════════════════════
-// LEADERBOARD
-// ═══════════════════════════════════════════
-async function loadLeaderboard() {
-  try {
-    const r = await window.storage.get("mk-scrabble-lb");
-    return r ? JSON.parse(r.value) : [];
-  } catch {
-    return [];
-  }
-}
-async function saveLeaderboard(data) {
-  try {
-    await window.storage.set("mk-scrabble-lb", JSON.stringify(data));
-  } catch {}
-}
-async function updateLeaderboard(name, score, won, age) {
-  const lb = await loadLeaderboard();
-  let e = lb.find((x) => x.name === name);
-  if (!e) {
-    e = { name, age, bestScore: 0, totalGames: 0, wins: 0, totalScore: 0 };
-    lb.push(e);
-  }
-  e.totalGames++;
-  e.totalScore += score;
-  e.age = age;
-  if (won) e.wins++;
-  if (score > e.bestScore) e.bestScore = score;
-  e.avgScore = Math.round(e.totalScore / e.totalGames);
-  e.lastPlayed = new Date().toISOString();
-  lb.sort((a, b) => b.bestScore - a.bestScore);
-  await saveLeaderboard(lb);
-  return lb;
 }
 
 // ═══════════════════════════════════════════
@@ -2129,568 +2031,35 @@ export default function MacedonianScrabble({
   // SETUP
   // ═══════════════════════════════════════════
   if (screen === "setup") {
-    const getDiff = (age) =>
-      age <= 8
-        ? { l: "Лесно", c: "#10b981", e: "🌱" }
-        : age <= 12
-          ? { l: "Средно", c: "#f59e0b", e: "⚡" }
-          : age <= 17
-            ? { l: "Тешко", c: "#f97316", e: "🔥" }
-            : { l: "Експерт", c: "#ef4444", e: "💀" };
     return (
-      <div
-        style={{
-          ...S.page,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 20,
-        }}
-      >
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap');`}</style>
-        <div
-          style={{
-            ...S.card,
-            padding: "36px 32px",
-            maxWidth: 520,
-            width: "100%",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 28,
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: S.accent,
-                  letterSpacing: 4,
-                  fontWeight: 600,
-                  marginBottom: 4,
-                }}
-              >
-                КОНФИГУРАЦИЈА
-              </div>
-              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>
-                Подготовка на Игра
-              </h2>
-            </div>
-            <button
-              onClick={() => setScreen("home")}
-              style={{ ...S.btnO, padding: "6px 16px", fontSize: 12 }}
-            >
-              ← Назад
-            </button>
-          </div>
-
-          {setupPlayers.map((sp, i) => {
-            const d = getDiff(sp.age);
-            return (
-              <div
-                key={i}
-                style={{
-                  padding: 16,
-                  marginBottom: 10,
-                  background:
-                    sp.type === "ai"
-                      ? "rgba(99,102,241,0.06)"
-                      : "rgba(255,255,255,0.02)",
-                  borderRadius: 12,
-                  border:
-                    sp.type === "ai"
-                      ? "1px solid rgba(99,102,241,0.2)"
-                      : "1px solid rgba(255,255,255,0.06)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    marginBottom: 10,
-                    alignItems: "center",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: S.muted,
-                      fontWeight: 600,
-                      minWidth: 60,
-                    }}
-                  >
-                    Играч {i + 1}
-                  </div>
-                  <input
-                    value={sp.name}
-                    onChange={(e) => {
-                      const s = [...setupPlayers];
-                      s[i] = { ...s[i], name: e.target.value };
-                      setSetupPlayers(s);
-                    }}
-                    style={{
-                      flex: 1,
-                      padding: "8px 12px",
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: 8,
-                      color: "#f1f5f9",
-                      fontSize: 13,
-                      fontFamily: "inherit",
-                      outline: "none",
-                    }}
-                  />
-                  {setupPlayers.length > 2 && (
-                    <button
-                      onClick={() =>
-                        setSetupPlayers(
-                          setupPlayers.filter((_, idx) => idx !== i),
-                        )
-                      }
-                      style={{
-                        background: "rgba(239,68,68,0.15)",
-                        border: "1px solid rgba(239,68,68,0.3)",
-                        color: "#ef4444",
-                        cursor: "pointer",
-                        borderRadius: 6,
-                        width: 28,
-                        height: 28,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 14,
-                      }}
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 2,
-                      background: "rgba(0,0,0,0.2)",
-                      borderRadius: 8,
-                      padding: 3,
-                    }}
-                  >
-                    {["human", "ai"].map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => {
-                          const s = [...setupPlayers];
-                          s[i] = {
-                            ...s[i],
-                            type: t,
-                            name:
-                              t === "ai" && !s[i].name.includes("🤖")
-                                ? `🤖 AI ${i + 1}`
-                                : s[i].name,
-                          };
-                          setSetupPlayers(s);
-                        }}
-                        style={{
-                          padding: "5px 14px",
-                          borderRadius: 6,
-                          fontSize: 11,
-                          cursor: "pointer",
-                          fontFamily: "inherit",
-                          border: "none",
-                          background:
-                            sp.type === t
-                              ? t === "ai"
-                                ? "#6366f1"
-                                : "#10b981"
-                              : "transparent",
-                          color: sp.type === t ? "#fff" : S.muted,
-                          fontWeight: 600,
-                          transition: "all 0.15s",
-                        }}
-                      >
-                        {t === "human" ? "👤 Човек" : "🤖 AI"}
-                      </button>
-                    ))}
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      flex: 1,
-                      minWidth: 180,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: S.muted,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      Возраст:
-                    </span>
-                    <input
-                      type="range"
-                      min="5"
-                      max="60"
-                      value={sp.age}
-                      onChange={(e) => {
-                        const s = [...setupPlayers];
-                        s[i] = { ...s[i], age: parseInt(e.target.value) };
-                        setSetupPlayers(s);
-                      }}
-                      style={{ flex: 1, accentColor: d.c, height: 4 }}
-                    />
-                    <span
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 700,
-                        color: d.c,
-                        minWidth: 22,
-                        fontFamily: "'Space Mono', monospace",
-                      }}
-                    >
-                      {sp.age}
-                    </span>
-                  </div>
-                  {sp.type === "ai" && (
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: d.c,
-                        fontWeight: 600,
-                        background: `${d.c}18`,
-                        padding: "3px 8px",
-                        borderRadius: 6,
-                      }}
-                    >
-                      {d.e} {d.l}
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {setupPlayers.length < 4 && (
-            <button
-              onClick={() =>
-                setSetupPlayers([
-                  ...setupPlayers,
-                  {
-                    name: `Играч ${setupPlayers.length + 1}`,
-                    age: 25,
-                    type: "human",
-                  },
-                ])
-              }
-              style={{
-                width: "100%",
-                padding: 10,
-                background: "transparent",
-                border: "1.5px dashed rgba(99,102,241,0.25)",
-                borderRadius: 10,
-                color: S.accent,
-                fontSize: 12,
-                cursor: "pointer",
-                fontFamily: "inherit",
-                marginBottom: 12,
-                transition: "all 0.15s",
-              }}
-            >
-              + Додади Играч
-            </button>
-          )}
-          <button
-            onClick={startGame}
-            style={{
-              ...S.btn("linear-gradient(135deg, #6366f1, #4f46e5)"),
-              width: "100%",
-              padding: "14px 24px",
-              fontSize: 15,
-              letterSpacing: 1,
-              marginTop: 4,
-            }}
-          >
-            Започни Игра 🎲
-          </button>
-        </div>
-      </div>
+      <SetupScreen
+        styles={S}
+        players={setupPlayers}
+        setPlayers={setSetupPlayers}
+        onBack={() => setScreen("home")}
+        onStart={startGame}
+      />
     );
   }
 
-  // ═══════════════════════════════════════════
   // GAME OVER
   // ═══════════════════════════════════════════
   if (screen === "gameOver") {
-    const sorted = [...players].sort((a, b) => b.score - a.score);
+    
     return (
-      <div
-        style={{
-          ...S.page,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 20,
-        }}
-      >
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap');`}</style>
-        <div
-          style={{
-            ...S.card,
-            padding: "44px 36px",
-            maxWidth: 580,
-            width: "100%",
-            textAlign: "center",
-            maxHeight: "95vh",
-            overflow: "auto",
-          }}
-        >
-          <div style={{ fontSize: 52, marginBottom: 10 }}>🏆</div>
-          <div
-            style={{
-              fontSize: 10,
-              color: S.accent,
-              letterSpacing: 4,
-              fontWeight: 600,
-              marginBottom: 8,
-            }}
-          >
-            КРАЈ НА ИГРАТА
-          </div>
-          <h2 style={{ fontSize: 24, margin: "0 0 6px", fontWeight: 700 }}>
-            {message}
-          </h2>
-
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              justifyContent: "center",
-              flexWrap: "wrap",
-              margin: "24px 0",
-            }}
-          >
-            {sorted.map((p, i) => (
-              <div
-                key={i}
-                style={{
-                  padding: "16px 24px",
-                  borderRadius: 14,
-                  minWidth: 100,
-                  background:
-                    i === 0
-                      ? "rgba(99,102,241,0.12)"
-                      : "rgba(255,255,255,0.03)",
-                  border:
-                    i === 0
-                      ? "1px solid rgba(99,102,241,0.35)"
-                      : "1px solid rgba(255,255,255,0.06)",
-                }}
-              >
-                <div style={{ fontSize: 22, marginBottom: 6 }}>
-                  {i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"}
-                </div>
-                <div style={{ fontSize: 11, color: S.muted, marginBottom: 4 }}>
-                  {p.type === "ai" ? "🤖 " : ""}
-                  {p.name}
-                </div>
-                <div
-                  style={{
-                    fontFamily: "'Space Mono', monospace",
-                    fontSize: 28,
-                    fontWeight: 700,
-                    color: i === 0 ? "#a5b4fc" : "#f1f5f9",
-                  }}
-                >
-                  {p.score}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {endBonuses && (
-            <div
-              style={{
-                marginBottom: 20,
-                padding: 16,
-                background: "rgba(99,102,241,0.05)",
-                borderRadius: 12,
-                border: "1px solid rgba(99,102,241,0.15)",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 11,
-                  color: S.accent,
-                  fontWeight: 700,
-                  marginBottom: 12,
-                  letterSpacing: 2,
-                }}
-              >
-                🎖️ БОНУС НАГРАДИ
-              </div>
-              {endBonuses.longestPlayers.length > 0 && (
-                <div
-                  style={{
-                    marginBottom: 10,
-                    padding: 10,
-                    background: "rgba(0,0,0,0.2)",
-                    borderRadius: 8,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: "#22d3ee",
-                      fontWeight: 600,
-                      marginBottom: 6,
-                    }}
-                  >
-                    📏 НАЈДОЛГ ЗБОР → +{endBonuses.longestPlayers[0].bonus}{" "}
-                    поени
-                  </div>
-                  {endBonuses.longestPlayers.map((lp, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <span style={{ fontSize: 12 }}>{lp.name}</span>
-                      <span
-                        style={{
-                          padding: "2px 10px",
-                          background: "rgba(34,211,238,0.15)",
-                          borderRadius: 6,
-                          fontSize: 13,
-                          color: "#22d3ee",
-                          fontWeight: 700,
-                          fontFamily: "'Space Mono', monospace",
-                          letterSpacing: 2,
-                        }}
-                      >
-                        {lp.word}
-                      </span>
-                      <span style={{ color: S.muted, fontSize: 10 }}>
-                        ({lp.len} букви)
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {endBonuses.bestScorePlayers.length > 0 && (
-                <div
-                  style={{
-                    padding: 10,
-                    background: "rgba(0,0,0,0.2)",
-                    borderRadius: 8,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: "#f59e0b",
-                      fontWeight: 600,
-                      marginBottom: 6,
-                    }}
-                  >
-                    🔥 НАЈМНОГУ ПОЕНИ ВО ПОТЕГ → +
-                    {endBonuses.bestScorePlayers[0].bonus} поени
-                  </div>
-                  {endBonuses.bestScorePlayers.map((bp, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <span style={{ fontSize: 12 }}>{bp.name}</span>
-                      <span
-                        style={{
-                          padding: "2px 10px",
-                          background: "rgba(245,158,11,0.15)",
-                          borderRadius: 6,
-                          fontSize: 13,
-                          color: "#f59e0b",
-                          fontWeight: 700,
-                        }}
-                      >
-                        {bp.word}
-                      </span>
-                      <span style={{ color: S.muted, fontSize: 10 }}>
-                        ({bp.score} п.)
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div
-            style={{
-              maxHeight: 100,
-              overflow: "auto",
-              textAlign: "left",
-              background: "rgba(0,0,0,0.2)",
-              borderRadius: 10,
-              padding: "10px 12px",
-              marginBottom: 20,
-            }}
-          >
-            {gameLog.map((e, i) => (
-              <div
-                key={i}
-                style={{
-                  color: S.muted,
-                  fontSize: 10,
-                  marginBottom: 2,
-                  fontFamily: "'Space Mono', monospace",
-                }}
-              >
-                {e}
-              </div>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-            <button
-              onClick={() => setScreen("setup")}
-              style={S.btn("linear-gradient(135deg, #6366f1, #4f46e5)")}
-            >
-              🔄 Нова Игра
-            </button>
-            <button
-              onClick={() => {
-                loadLeaderboard().then(setLeaderboard);
-                setScreen("leaderboard");
-              }}
-              style={S.btnO}
-            >
-              🏆 Табла
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    <GameOverScreen
+      players={players}
+      endBonuses={endBonuses}
+      styles={S}
+      message={message}
+      gameLog={gameLog}
+      onNewGame={() => setScreen("setup")}
+      onOpenLeaderboard={() => {
+        loadLeaderboard().then(setLeaderboard);
+        setScreen("leaderboard");
+      }}
+    />
+  );
   }
 
   // ═══════════════════════════════════════════

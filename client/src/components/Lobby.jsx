@@ -1,13 +1,5 @@
 import { useEffect, useState } from "react";
-
-async function loadLeaderboard() {
-  try {
-    const r = await window.storage.get("mk-scrabble-lb");
-    return r ? JSON.parse(r.value) : [];
-  } catch {
-    return [];
-  }
-}
+import { loadLeaderboard } from "../services/leaderboardService.js"
 
 export default function Lobby({ user, onCreate, onJoin, onLogout, loading, error }) {
   const [tab,          setTab]          = useState("create");

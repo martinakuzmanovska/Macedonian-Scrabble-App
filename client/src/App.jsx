@@ -5,15 +5,9 @@ import LoginScreen  from "./components/LoginScreen.jsx";
 import Lobby        from "./components/Lobby.jsx";
 import InviteScreen from "./components/InviteScreen.jsx";
 import MacedonianScrabble from "./scrabble.jsx";
+import { loadLeaderboard } from "./services/leaderboardService.js"
 
-async function loadLeaderboard() {
-  try {
-    const r = await window.storage.get("mk-scrabble-lb");
-    return r ? JSON.parse(r.value) : [];
-  } catch {
-    return [];
-  }
-}
+
 
 function AppSidebar({ user, onLogout, onOpenLeaderboard }) {
   return (
