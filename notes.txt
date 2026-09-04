@@ -1,6 +1,7 @@
 Notes on how things are going 
 
-Bug: After a declined word gets stuck on waiting screen 
+Bug: After a declined word, gets stuck on waiting screen 
 
 Description:
-1. Once challanged the 
+1. Once challanged the game is stuck on waiting for the user that is challanged.
+2. The user challanging can put their word in but screen gets stuck on waiting since the other player is stuck 

@@ -538,7 +538,15 @@ export default function MacedonianScrabble({
     if (!hasServerGame || !gameIdRef.current) return;
 
     const applyServerState = (s) => {
-      if (showingChallengeResultRef.current) return;
+      // Keep a challenge result on screen, but never let this flag block
+      // normal game-state updates after that result has been dismissed.
+      if (
+        showingChallengeResultRef.current &&
+        screenRef.current === "challenge"
+      ) {
+        return;
+      }
+      showingChallengeResultRef.current = false;
       const normalizedPlayers = (s.players ?? []).map((p) => ({
         ...p,
         name: p.displayName || p.name || "Играч",
@@ -583,14 +591,6 @@ export default function MacedonianScrabble({
         return;
       }
 
-      if (
-        (screenRef.current === "challenge" ||
-          screenRef.current === "waitingChallenge") &&
-        s.status === "challenge"
-      ) {
-        return;
-      }
-
       // Normal playing state
       setPlacedTiles([]);
       setFormedWords([]);
@@ -598,7 +598,6 @@ export default function MacedonianScrabble({
       if (cp && screenRef.current === "playing") {
         setMessage(`${cp.name} — твој ред!`);
       }
-      if (showingChallengeResultRef.current) return;
       setScreen("playing");
     };
 
@@ -1092,10 +1091,15 @@ export default function MacedonianScrabble({
             setPlacedTiles([]);
             setFormedWords([]);
             setTurnScore(0);
-            setChallengeResult({ word, ...result });
-            showingChallengeResultRef.current = true;
+            setChallengeResult(null);
+            // The invalid-word path immediately returns to the board. Leaving
+            // this true makes this client ignore every future polling update.
+            showingChallengeResultRef.current = false;
             setMessage(`❌ "${word}" не е валиден! Плочките се вратени.`);
             setScreen("playing");
+          } else {
+            showingChallengeResultRef.current = false;
+            setMessage(`⚠️ Грешка: ${data.error ?? "Неуспешно обработување на предизвикот."}`);
           }
         } else {
           setMessage(
