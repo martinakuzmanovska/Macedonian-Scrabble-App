@@ -7,8 +7,11 @@ export default defineConfig({
     host: true,
    // allowedHosts: ['maximus-eudiometric-teughly.ngrok-free.dev'],
     proxy: {
-      '/api': 'http://localhost:3000',  
-    //  '/api': 'https://net-stack-fruit-gone.trycloudflare.com/'
+       //  '/api': 'https://net-stack-fruit-gone.trycloudflare.com/'
+      '/api': {
+        target: 'http://localhost:3000',  
+      changeOrigin: true,
+        secure: false, }
     }
   },
   plugins: [

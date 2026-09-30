@@ -1,4 +1,5 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config({ override: true });
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
@@ -7,6 +8,7 @@ import session from "express-session";
 import passport from "passport";
 import MongoStore from "connect-mongo";
 import { Server as SocketIO } from "socket.io";
+import { randomUUID, createHash } from "node:crypto";
 
 import { configurePassport } from "./config/passport.js";
 import authRoute      from "./routes/auth.js";
@@ -30,6 +32,12 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+app.use((req, res, next) => {
+  req.requestId = req.get("X-Request-Id") || randomUUID();
+  res.setHeader("X-Request-Id", req.requestId);
+  next();
+});
 
 const MONGO_URI = "mongodb://127.0.0.1:27017/scrabble";
 
@@ -57,6 +65,7 @@ app.use("/api/word-info", wordInfoRoute);
 app.use("/api/ai-move",   aiMoveRoute);
 app.use("/api/games",     gamesRoute);
 
+
 app.get("/api/health", (_req, res) =>
   res.json({ status: "ok", time: new Date().toISOString() })
 );
@@ -68,3 +77,9 @@ io.on("connection", socket => {
 });
 
 server.listen(3000, () => console.log("Server running on port 3000"));
+
+console.log("[config] Anthropic key", {
+  configured: Boolean(process.env.ANTHROPIC_API_KEY),
+  length: process.env.ANTHROPIC_API_KEY?.length ?? 0,
+  startsCorrectly: process.env.ANTHROPIC_API_KEY?.startsWith("sk-ant-") ?? false,
+});

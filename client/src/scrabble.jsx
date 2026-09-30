@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import * as Tone from "tone";
+import { useAIMove } from "./hooks/useAIMove.js";
 import SetupScreen from "./components/SetupScreen.jsx";
 import GameOverScreen from "./components/GameOverScreen.jsx";
 
@@ -16,12 +17,6 @@ import {
   drawTiles, 
   createEmptyBoard,
 } from "./game/gameState.js"
-
-import {
-  findFormedWords, 
-  calcScore, 
-  validatePlacement
-} from "./game/gameEngine.js"
 
 import { loadLeaderboard, updateLeaderboard } from "./services/leaderboardService.js";
 // ═══════════════════════════════════════════
@@ -320,79 +315,6 @@ async function getWordInfo(word) {
 }
 
 // ═══════════════════════════════════════════
-// AI PLAYER MOVE GENERATION
-// ═══════════════════════════════════════════
-function boardToText(bs) {
-  let t = "   ";
-  for (let c = 0; c < 15; c++) t += String(c).padStart(3);
-  t += "\n";
-  for (let r = 0; r < 15; r++) {
-    t += String(r).padStart(2) + " ";
-    for (let c = 0; c < 15; c++) {
-      const cell = bs[r][c];
-      t += (cell ? cell.displayLetter || cell.letter : ".").padStart(3);
-    }
-    t += "\n";
-  }
-  return t;
-}
-function getAIDifficultyPrompt(age) {
-  if (age <= 8)
-    return `Играш со дете од ${age} год. Користи МНОГУ кратки ЛИТЕРАТУРНИ зборови (2-3 букви): ОД, НА, ДА, НЕ, ОКО, ДЕН, СОН, НОС, ДОМ, СОЛ, МИР, ЛЕТ, ВОЗ, РОД, ТОН, ЛОВ, ВОЛ, СОК. Понекогаш направи грешка.`;
-  if (age <= 12)
-    return `Играш со дете од ${age} год. Користи едноставни ЛИТЕРАТУРНИ зборови (3-5 букви): МОСТ, РЕКА, СЕЛО, ЛЕТО, ПОЛЕ, ВОДА, ДРВО, НОГА, РАКА, КНИГА, МАСА, КУЌА, СОНЦЕ.`;
-  if (age <= 17)
-    return `Играш со тинејџер од ${age} год. Користи средно-тешки ЛИТЕРАТУРНИ зборови (4-7 букви): ПОБЕДА, ПРОЛЕТ, ШКОЛО, КАМЕН, ПЕСНА, ЈУНАК, ДРЖАВА, ПРИРОДА.`;
-  return `Играш со возрасен. Користи сложени ЛИТЕРАТУРНИ зборови. Искористи бонус полиња. Максимални поени.`;
-}
-async function generateAIMove(boardState, rack, isFirstMove, age) {
-  const rackLetters = rack
-    .map((t) => (t.letter === "★" ? "ЏОКЕР" : t.letter))
-    .join(", ");
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
-        tools: [{ type: "web_search_20250305", name: "web_search" }],
-        messages: [
-          {
-            role: "user",
-            content: `Ти си AI играч во Македонски Скрабл. ${getAIDifficultyPrompt(age)}
-
-ВАЖНО: Користи САМО зборови кои постојат во македонски литературен јазик (речник). Пребарај ако не си сигурен.
-
-Табла (. = празно):
-${boardToText(boardState)}
-
-Твои плочки: ${rackLetters}
-${isFirstMove ? "ПРВО поставување - МОРА да покрие (7,7)." : "МОРА да се поврзе со постоечки букви."}
-
-Одговори САМО со JSON:
-{"word":"ЗБОР","placements":[{"row":7,"col":5,"letter":"З"}],"joker_as":null,"explanation":"објаснување"}
-
-placements = САМО нови плочки. Ако не можеш: {"word":null,"pass":true}`,
-          },
-        ],
-      }),
-    });
-    const data = await response.json();
-    const text =
-      data.content
-        ?.map((item) => (item.type === "text" ? item.text : ""))
-        .filter(Boolean)
-        .join("\n") || "";
-    const jsonMatch = text.replace(/```json|```/g, "").match(/\{[\s\S]*\}/);
-    if (jsonMatch) return JSON.parse(jsonMatch[0]);
-    return { word: null, pass: true };
-  } catch {
-    return { word: null, pass: true };
-  }
-}
-
-// ═══════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════
 export default function MacedonianScrabble({
@@ -492,6 +414,33 @@ export default function MacedonianScrabble({
   const placedTilesRef = useRef([]);
   const screenRef = useRef(screen);
   const showingChallengeResultRef = useRef(false);
+  const endGameRef = useRef(null);
+  const addLog = useCallback((entry) => setGameLog((previous) => [...previous, entry]), []);
+
+  const { triggerAIMove } = useAIMove({
+    jokerAssignments,
+    consecutivePasses,
+    addLog,
+    endGameRef,
+    playWordSuccess: SFX.wordSuccess,
+    setAIThinking: setIsAIThinking,
+    setMessage,
+    setConsecutivePasses,
+    setCurrentPlayer,
+    setJokerAssignments,
+    setBoard,
+    setPlayers,
+    setPlacedTiles,
+    setFormedWords,
+    setTurnScore,
+    setAIMoveDisplay: setAiMoveDisplay,
+    setTileBag,
+    setConfirmedBoard,
+    setWordRecords,
+    setIsFirstMove,
+    setScreen,
+    gameId: initialGameState?.gameId,
+  });
 
   useEffect(() => {
     loadLeaderboard().then(setLeaderboard);
@@ -515,7 +464,6 @@ export default function MacedonianScrabble({
             conf,
             initialGameState.tileBag ?? [],
             initialGameState.isFirstMove ?? true,
-            conf,
           ),
         800,
       );
@@ -631,7 +579,6 @@ export default function MacedonianScrabble({
       return jokerAssignments[tile.id];
     return tile.letter;
   };
-  const addLog = (entry) => setGameLog((prev) => [...prev, entry]);
 
   // ─── DRAG & DROP ───
   const handleDragStart = (e, tile, rackIndex) => {
@@ -678,14 +625,18 @@ export default function MacedonianScrabble({
   // ─── GAME START ───
   const startGame = () => {
     if (hasServerGame) return; // server owns this game
-    const bag = createTileBag();
-    const gp = setupPlayers.map((sp) => ({
-      ...sp,
-      rack: drawTiles(bag, 7),
-      score: 0,
-      skipPenalty: false,
-    }));
-    setTileBag([...bag]);
+    let bag = createTileBag();
+    const gp = setupPlayers.map((sp) => {
+      const { drawn, remainingBag } = drawTiles(bag, 7);
+      bag = remainingBag;
+      return {
+        ...sp,
+        rack: drawn,
+        score: 0,
+        skipPenalty: false,
+      };
+    });
+    setTileBag(bag);
     setPlayers(gp);
     setBoard(createEmptyBoard());
     setConfirmedBoard(createEmptyBoard());
@@ -710,7 +661,6 @@ export default function MacedonianScrabble({
             createEmptyBoard(),
             bag,
             true,
-            createEmptyBoard(),
           ),
         600,
       );
@@ -946,6 +896,47 @@ export default function MacedonianScrabble({
         );
         const data = await res.json();
         if (data.success) {
+          if (data.state?.status === "playing") {
+            const serverState = data.state;
+            const normalizedPlayers = (serverState.players ?? []).map((p) => ({
+              ...p,
+              name: p.displayName || p.name || "Играч",
+            }));
+            setPlayers(normalizedPlayers);
+            setCurrentPlayer(serverState.currentPlayerIndex ?? 0);
+            setBoard(serverState.board ?? createEmptyBoard());
+            setConfirmedBoard(serverState.confirmedBoard ?? createEmptyBoard());
+            setTileBag(serverState.tileBag ?? []);
+            setGameLog(serverState.gameLog ?? []);
+            setIsFirstMove(serverState.isFirstMove ?? false);
+            setConsecutivePasses(serverState.consecutivePasses ?? 0);
+            setJokerAssignments(serverState.jokerAssignments ?? {});
+            setPlacedTiles([]);
+            setFormedWords([]);
+            setTurnScore(0);
+            setAiMoveDisplay(null);
+            setScreen(serverState.status === "gameOver" ? "gameOver" : "playing");
+
+            const nextIndex = serverState.currentPlayerIndex ?? 0;
+            if (serverState.status !== "gameOver" && normalizedPlayers[nextIndex]?.type === "ai") {
+              setTimeout(
+                () =>
+                  triggerAIMove(
+                    normalizedPlayers,
+                    nextIndex,
+                    serverState.confirmedBoard ?? createEmptyBoard(),
+                    serverState.tileBag ?? [],
+                    serverState.isFirstMove ?? false,
+                  ),
+                800,
+              );
+            } else {
+              const nextPlayer = normalizedPlayers[nextIndex];
+              setMessage(nextPlayer ? `${nextPlayer.name} — твој ред!` : "");
+            }
+            return;
+          }
+
           // Show waiting message — polling will update when opponent decides
           const wl = formedWords.map((w) => w.word).join(", ");
           setMessage(
@@ -1295,166 +1286,9 @@ export default function MacedonianScrabble({
     if (npArr[next].type === "ai") {
       const fm = isFirstMove;
       setTimeout(
-        () => triggerAIMove(npArr, next, conf, tileBag, fm, conf),
+        () => triggerAIMove(npArr, next, conf, tileBag, fm),
         800,
       );
-    }
-  };
-
-  const triggerAIMove = async (
-    curPlayers,
-    pidx,
-    curBoard,
-    curBag,
-    firstMove,
-    confirmed,
-  ) => {
-    setIsAIThinking(true);
-    const player = curPlayers[pidx];
-    setMessage(`🤖 ${player.name} размислува...`);
-    const result = await generateAIMove(
-      confirmed,
-      player.rack,
-      firstMove,
-      player.age,
-    );
-    setIsAIThinking(false);
-    if (!result || result.pass || !result.word || !result.placements?.length) {
-      addLog(`${player.name}: пас (AI)`);
-      setMessage(`${player.name} пасира.`);
-      const np2 = consecutivePasses + 1;
-      setConsecutivePasses(np2);
-      if (np2 >= curPlayers.length * 2) {
-        endGame(curPlayers);
-        return;
-      }
-      const next = (pidx + 1) % curPlayers.length;
-      setCurrentPlayer(next);
-      setMessage(`${curPlayers[next].name} — твој ред!`);
-      if (curPlayers[next].type === "ai")
-        setTimeout(
-          () =>
-            triggerAIMove(
-              curPlayers,
-              next,
-              confirmed,
-              curBag,
-              firstMove,
-              confirmed,
-            ),
-          800,
-        );
-      return;
-    }
-    const newBoard = confirmed.map((r) => [...r]);
-    const newPlaced = [];
-    const np = [...curPlayers];
-    let rackCopy = [...player.rack];
-    let newJA = { ...jokerAssignments };
-    for (const pl of result.placements) {
-      if (
-        pl.row < 0 ||
-        pl.row > 14 ||
-        pl.col < 0 ||
-        pl.col > 14 ||
-        newBoard[pl.row][pl.col]
-      )
-        continue;
-      let ti = rackCopy.findIndex((t) => t.letter === pl.letter);
-      if (ti === -1) {
-        ti = rackCopy.findIndex((t) => t.letter === "★");
-        if (ti !== -1) newJA[rackCopy[ti].id] = pl.letter;
-      }
-      if (ti === -1) continue;
-      const tile = rackCopy[ti];
-      rackCopy = rackCopy.filter((_, i) => i !== ti);
-      newBoard[pl.row][pl.col] = { ...tile, displayLetter: pl.letter };
-      newPlaced.push({ row: pl.row, col: pl.col, tile });
-    }
-    if (!newPlaced.length) {
-      addLog(`${player.name}: пас (невалиден)`);
-      const next = (pidx + 1) % curPlayers.length;
-      setCurrentPlayer(next);
-      setMessage(`${curPlayers[next].name} — твој ред!`);
-      if (curPlayers[next].type === "ai")
-        setTimeout(
-          () =>
-            triggerAIMove(
-              curPlayers,
-              next,
-              confirmed,
-              curBag,
-              firstMove,
-              confirmed,
-            ),
-          800,
-        );
-      return;
-    }
-    setJokerAssignments(newJA);
-    setBoard(newBoard);
-    np[pidx] = { ...np[pidx], rack: rackCopy };
-    setPlayers(np);
-    setPlacedTiles(newPlaced);
-    const { total, words } = calcScore(newBoard, newPlaced, confirmed);
-    setFormedWords(words);
-    setTurnScore(total);
-    const wl = words.map((w) => w.word).join(", ");
-    setAiMoveDisplay({
-      word: result.word,
-      explanation: result.explanation,
-      score: total,
-      words: wl,
-    });
-    const hasHuman = np.some((p, i) => i !== pidx && p.type === "human");
-    if (hasHuman && words.length > 0) {
-      setMessage(`🤖 ${player.name}: ${wl} (${total} п.)`);
-      setScreen("challenge");
-    } else {
-      setTimeout(() => {
-        SFX.wordSuccess();
-        np[pidx] = { ...np[pidx], score: np[pidx].score + total };
-        const drawn = drawTiles(curBag, 7 - rackCopy.length);
-        np[pidx] = { ...np[pidx], rack: [...rackCopy, ...drawn] };
-        setTileBag([...curBag]);
-        setPlayers(np);
-        const nc = newBoard.map((r) => r.map((c) => (c ? { ...c } : null)));
-        setConfirmedBoard(nc);
-        addLog(`${player.name}: ${wl} (+${total})`);
-        // Track AI word records too
-        setWordRecords((prev) => {
-          const rec = { ...prev };
-          if (!rec[pidx])
-            rec[pidx] = {
-              longestWord: "",
-              longestLen: 0,
-              bestWord: "",
-              bestScore: 0,
-            };
-          for (const w of words) {
-            if (w.word.length > rec[pidx].longestLen) {
-              rec[pidx].longestWord = w.word;
-              rec[pidx].longestLen = w.word.length;
-            }
-          }
-          if (total > rec[pidx].bestScore) {
-            rec[pidx].bestWord = wl;
-            rec[pidx].bestScore = total;
-          }
-          return rec;
-        });
-        setIsFirstMove(false);
-        setConsecutivePasses(0);
-        setPlacedTiles([]);
-        setFormedWords([]);
-        setTurnScore(0);
-        setAiMoveDisplay(null);
-        const next = (pidx + 1) % np.length;
-        setCurrentPlayer(next);
-        setMessage(`${np[next].name} — твој ред!`);
-        if (np[next].type === "ai")
-          setTimeout(() => triggerAIMove(np, next, nc, curBag, false, nc), 800);
-      }, 2000);
     }
   };
 
@@ -1581,6 +1415,7 @@ export default function MacedonianScrabble({
     }
     setLeaderboard(await loadLeaderboard());
   };
+  endGameRef.current = endGame;
 
   // ═══════════════════════════════════════════
   // STYLES

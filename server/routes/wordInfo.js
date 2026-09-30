@@ -2,7 +2,7 @@ import express from "express";
 import Anthropic from "@anthropic-ai/sdk";
 
 const router = express.Router();
-const client = new Anthropic(); // reads ANTHROPIC_API_KEY from env automatically
+//const client = new Anthropic(); // reads ANTHROPIC_API_KEY from env automatically
 
 router.post("/", async (req, res) => {
   const { word } = req.body;

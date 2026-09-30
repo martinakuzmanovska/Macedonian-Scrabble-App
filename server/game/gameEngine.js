@@ -550,6 +550,12 @@ export function applyChallengeResult(state, isValid) {
 
 // ─── AI move application ────────────────────
 
+function normalizeAIMoveLetter(letter) {
+  return typeof letter === "string"
+    ? letter.normalize("NFC").trim().toLocaleUpperCase("mk-MK")
+    : "";
+}
+
 /**
  * Apply an AI-generated move to the board.
  * The AI returns a list of placements: [{ row, col, letter }].
@@ -569,17 +575,21 @@ export function applyAIMove(state, placements) {
   const newPlacedTiles = [];
 
   for (const pl of placements) {
-    if (pl.row < 0 || pl.row > 14 || pl.col < 0 || pl.col > 14) continue;
-    if (newBoard[pl.row][pl.col]) continue; // already occupied
+    if (!pl) continue;
+    const row = Number(pl.row);
+    const col = Number(pl.col);
+    const letter = normalizeAIMoveLetter(pl.letter);
+    if (!Number.isInteger(row) || row < 0 || row > 14 || !Number.isInteger(col) || col < 0 || col > 14) continue;
+    if (Array.from(letter).length !== 1 || newBoard[row][col]) continue;
 
     // Try to find a matching tile in the rack
-    let tileIndex = rackCopy.findIndex(t => t.letter === pl.letter);
+    let tileIndex = rackCopy.findIndex(t => normalizeAIMoveLetter(t.letter) === letter);
 
     // If not found, try to use a joker
     if (tileIndex === -1) {
       tileIndex = rackCopy.findIndex(t => t.letter === '★');
       if (tileIndex !== -1) {
-        newJokerAssignments[rackCopy[tileIndex].id] = pl.letter;
+        newJokerAssignments[rackCopy[tileIndex].id] = letter;
       }
     }
 
@@ -588,8 +598,8 @@ export function applyAIMove(state, placements) {
     const tile = rackCopy[tileIndex];
     rackCopy = rackCopy.filter((_, i) => i !== tileIndex);
 
-    newBoard[pl.row][pl.col] = { ...tile, displayLetter: pl.letter };
-    newPlacedTiles.push({ row: pl.row, col: pl.col, tile });
+    newBoard[row][col] = { ...tile, displayLetter: letter };
+    newPlacedTiles.push({ row, col, tile });
   }
 
   if (!newPlacedTiles.length) return state; // nothing was placed

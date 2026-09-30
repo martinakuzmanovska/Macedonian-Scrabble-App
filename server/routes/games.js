@@ -11,6 +11,9 @@ import {
   passTurnAction,
   exchangeTilesAction,
   challengeResultAction,
+  applyAIMoveAction,
+  finalizeAITurnAction,
+  passAITurnAction,
 } from "../services/gameService.js";
 
 const router = express.Router();
@@ -206,6 +209,26 @@ router.post("/:gameId/confirm", async (req, res) => {
 
     Object.assign(game, Game.fromEngineState(newState));
     await game.save();
+
+    const hasHumanOpponent = state.players.some(
+      (player, index) =>
+        index !== state.currentPlayerIndex && player.type === "human",
+    );
+    if (!hasHumanOpponent) {
+      const finalized = await finalizeTurnAction(
+        req.params.gameId,
+        req.user._id,
+      );
+      if (typeof finalized === "string") {
+        return res.status(400).json({ success: false, error: finalized });
+      }
+      return res.json({
+        success: true,
+        gameId: req.params.gameId,
+        state: finalized.state,
+      });
+    }
+
     console.log(
       `Confirm: game=${game.gameId} words=${formedWords} score=${turnScore}`,
     );
@@ -336,6 +359,65 @@ router.post("/:gameId/pass", (req, res) =>
 router.post("/:gameId/exchange", (req, res) =>
   handleAction(res, exchangeTilesAction(req.params.gameId, req.user._id)),
 );
+
+router.post("/:gameId/ai-turn", async (req, res) => {
+  try {
+    const { placements, pass } = req.body;
+    const game = await Game.findOne({ gameId: req.params.gameId });
+    if (!game) {
+      return res.status(404).json({ success: false, error: "Game not found" });
+    }
+    const isParticipant = game.players.some(
+      (player) => player.userId?.toString() === req.user._id.toString(),
+    );
+    if (!isParticipant) {
+      return res.status(403).json({ success: false, error: "Not in this game" });
+    }
+    const currentPlayer = game.players[game.currentPlayerIndex];
+    if (currentPlayer?.type !== "ai") {
+      return res.status(400).json({ success: false, error: "It is not an AI turn" });
+    }
+    if (!pass && !Array.isArray(placements)) {
+      return res.status(400).json({ success: false, error: "placements array is required" });
+    }
+
+    const applied = pass
+      ? await passAITurnAction(req.params.gameId)
+      : await applyAIMoveAction(req.params.gameId, placements);
+
+    if (typeof applied === "string") {
+      return res.status(400).json({ success: false, error: applied });
+    }
+
+    if (!pass && !applied.state.placedTiles?.length) {
+      const skipped = await passAITurnAction(req.params.gameId);
+      if (typeof skipped === "string") {
+        return res.status(400).json({ success: false, error: skipped });
+      }
+      return res.json({ success: true, state: skipped.state, passed: true });
+    }
+
+    if (pass) {
+      return res.json({ success: true, state: applied.state, passed: true });
+    }
+
+    const finalized = await finalizeAITurnAction(req.params.gameId);
+    if (typeof finalized === "string") {
+      return res.status(400).json({ success: false, error: finalized });
+    }
+
+    return res.json({
+      success: true,
+      state: finalized.state,
+      score: applied.state.turnScore,
+      words: applied.state.formedWords,
+    });
+  } catch (err) {
+    console.error("ai-turn error:", err);
+    return res.status(500).json({ success: false, error: "AI turn failed" });
+  }
+});
+
 router.post("/:gameId/challenge", (req, res) => {
   const { isValid } = req.body;
   handleAction(
