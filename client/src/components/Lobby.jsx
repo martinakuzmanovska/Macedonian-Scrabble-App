@@ -37,7 +37,7 @@ export default function Lobby({ user, onCreate, onJoin, onLogout, loading, error
   const btnO = { padding: "10px 22px", background: "transparent", color: "#6366f1", border: "1.5px solid rgba(99,102,241,0.35)", borderRadius: 10, fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#080b14", fontFamily: "'DM Sans','Segoe UI',sans-serif", color: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, position: "relative", overflow: "hidden" }}>
+    <div style={{ minHeight: "100vh", background: "var(--app-background)", fontFamily: "'DM Sans','Segoe UI',sans-serif", color: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, position: "relative", overflow: "hidden" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap');
         @keyframes pulse-glow { 0%,100%{opacity:0.3} 50%{opacity:0.6} }

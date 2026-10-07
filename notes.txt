@@ -1,6 +1,0 @@
-Notes on how things are going 
-
-Things that are not sitting right with me:
-the AI is taking too long to think
-Visual problems
-Selecting the board sometimes glitches

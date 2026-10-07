@@ -9,116 +9,40 @@ import { loadLeaderboard } from "./services/leaderboardService.js"
 
 
 
-function AppSidebar({ user, onLogout, onOpenLeaderboard }) {
+function AppNavbar({ user, onLogout, onOpenLeaderboard }) {
   return (
-    <aside
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        bottom: 0,
-        width: 250,
-        background: "#101827",
-        borderRight: "1px solid rgba(99, 102, 241, 0.18)",
-        boxShadow: "0 18px 40px rgba(0,0,0,0.28)",
-        padding: "22px 18px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 18,
-        zIndex: 20,
-      }}
-    >
-      <div
-        style={{
-          fontFamily: "'Space Mono', monospace",
-          fontSize: 24,
-          letterSpacing: 4,
-          fontWeight: 700,
-          background: "linear-gradient(135deg, #f8fafc, #a5b4fc)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-          textAlign: "center",
-          marginBottom: 8,
-        }}
-      >
-        СКРАБЛ
-      </div>
+    <nav className="app-navbar" aria-label="Main navigation">
+      <div className="app-navbar-brand">СКРАБЛ</div>
 
-      <div
-        style={{
-          background: "rgba(99,102,241,0.08)",
-          border: "1px solid rgba(99,102,241,0.2)",
-          borderRadius: 16,
-          padding: 14,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+      <div className="app-navbar-user">
           <img
             src={user.avatar || "https://ui-avatars.com/api/?name=" + encodeURIComponent(user.displayName || "Player") + "&background=6366f1&color=fff"}
             alt="Profile"
-            style={{ width: 46, height: 46, borderRadius: "50%", border: "2px solid rgba(165,180,252,0.5)" }}
+            className="app-navbar-avatar"
           />
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 12, color: "#cbd5e1", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <div className="app-navbar-user-copy">
+            <div className="app-navbar-name">
               {user.displayName || "Player"}
             </div>
-            <div style={{ fontSize: 10, color: "#94a3b8" }}>{user.email || "Player"}</div>
+            <div className="app-navbar-email">{user.email || "Player"}</div>
           </div>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <button
-            onClick={onOpenLeaderboard}
-            style={{
-              background: "linear-gradient(135deg, #6366f1, #4f46e5)",
-              color: "#fff",
-              border: "none",
-              borderRadius: 10,
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: "pointer",
-              padding: "10px 12px",
-            }}
-          >
-            🏆 Leaderboard
-          </button>
-          <button
-            onClick={onLogout}
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              color: "#e2e8f0",
-              border: "1px solid rgba(148,163,184,0.2)",
-              borderRadius: 10,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              padding: "10px 12px",
-            }}
-          >
-            🚪 Logout
-          </button>
-        </div>
       </div>
 
-      <div
-        style={{
-          marginTop: "auto",
-          background: "rgba(15,23,42,0.7)",
-          border: "1px solid rgba(148,163,184,0.12)",
-          borderRadius: 14,
-          padding: 12,
-        }}
-      >
-        <div style={{ fontSize: 10, letterSpacing: 2, color: "#94a3b8", textTransform: "uppercase", marginBottom: 8 }}>
-          Profile
-        </div>
-        <div style={{ fontSize: 12, color: "#e2e8f0", lineHeight: 1.6 }}>
-          <div>• Status: Active</div>
-          <div>• Rank: Amateur</div>
-          <div>• Games: {user.gamesPlayed || 0}</div>
-        </div>
+      <div className="app-navbar-stats">
+        <span>Active</span>
+        <span>Rank: Amateur</span>
+        <span>Games: {user.gamesPlayed || 0}</span>
       </div>
-    </aside>
+
+      <div className="app-navbar-actions">
+        <button className="app-navbar-button app-navbar-leaderboard" onClick={onOpenLeaderboard}>
+          🏆 Leaderboard
+        </button>
+        <button className="app-navbar-button app-navbar-logout" onClick={onLogout}>
+          🚪 Logout
+        </button>
+      </div>
+    </nav>
   );
 }
 
@@ -272,7 +196,7 @@ export default function App() {
 
   return (
     <>
-      <AppSidebar
+      <AppNavbar
         user={user}
         onLogout={logout}
         onOpenLeaderboard={() => {
@@ -280,7 +204,7 @@ export default function App() {
           setShowLeaderboard(true);
         }}
       />
-      <div style={{ marginLeft: 250, minHeight: "100vh", width: "calc(100% - 250px)" }}>
+      <div style={{ width: "100%" }}>
         {content}
       </div>
       {showLeaderboard && (
