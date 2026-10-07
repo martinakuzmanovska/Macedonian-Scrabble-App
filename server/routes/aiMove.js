@@ -2,6 +2,7 @@ import express from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { findFormedWords } from "../game/gameEngine.js";
+import { challengeWord } from "../services/challengeService.js";
 
 const router = express.Router();
 
@@ -207,13 +208,36 @@ placements = САМО нови плочки. letter = точно една гол
         (w) => w.word,
       );
 
-      if (!actualWords.includes(moveData.word)) {
+           if (!actualWords.includes(moveData.word)) {
         console.warn("[ai-move] word mismatch — discarding move", {
           requestId,
           claimedWord: moveData.word,
           actualWords,
         });
         moveData = { word: null, pass: true, placements: [] };
+      }
+    }
+
+    // Verify the word is real, using the same dictionary check a human challenge would use
+    if (moveData.word) {
+      try {
+        const dictResult = await challengeWord(moveData.word);
+        if (dictResult.valid === false) {
+          console.warn("[ai-move] word failed dictionary check — discarding move", {
+            requestId,
+            claimedWord: moveData.word,
+            cached: dictResult.cached,
+          });
+          moveData = { word: null, pass: true, placements: [] };
+        }
+      } catch (dictErr) {
+        // Dictionary lookup itself failed (e.g. scraper issue) — don't block
+        // gameplay over an infrastructure hiccup, just let the move through.
+        console.warn("[ai-move] dictionary check errored, allowing move through", {
+          requestId,
+          claimedWord: moveData.word,
+          dictErr: dictErr.message,
+        });
       }
     }
     return res.json({ success: true, ...moveData });

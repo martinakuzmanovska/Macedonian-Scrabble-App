@@ -5,20 +5,23 @@ import SetupScreen from "./components/SetupScreen.jsx";
 import GameOverScreen from "./components/GameOverScreen.jsx";
 
 import {
-  TILE_CONFIG, 
+  TILE_CONFIG,
   MK_LETTERS,
-  BONUS_MAP, 
+  BONUS_MAP,
   BONUS_COLORS,
-  getPoints
-} from "./game/constants"
+  getPoints,
+} from "./game/constants";
 
 import {
-  createTileBag, 
-  drawTiles, 
+  createTileBag,
+  drawTiles,
   createEmptyBoard,
-} from "./game/gameState.js"
+} from "./game/gameState.js";
 
-import { loadLeaderboard, updateLeaderboard } from "./services/leaderboardService.js";
+import {
+  loadLeaderboard,
+  updateLeaderboard,
+} from "./services/leaderboardService.js";
 // ═══════════════════════════════════════════
 // SOUND SYSTEM
 // ═══════════════════════════════════════════
@@ -183,7 +186,6 @@ function playBonusSound(row, col) {
 // MACEDONIAN SCRABBLE - ПОЛНО ИЗДАНИЕ
 // Drag & Drop, Речник валидација, Инфо за зборови
 // ═══════════════════════════════════════════
-
 
 // ═══════════════════════════════════════════
 // AI WORD VALIDATION — Дигитален Речник
@@ -411,11 +413,15 @@ export default function MacedonianScrabble({
   // Stable refs so polling closure always reads current values
   const gameIdRef = useRef(initialGameState?.gameId ?? null);
   const isMyTurnRef = useRef(false);
+  const isPlacingRef = useRef(false);
   const placedTilesRef = useRef([]);
   const screenRef = useRef(screen);
   const showingChallengeResultRef = useRef(false);
   const endGameRef = useRef(null);
-  const addLog = useCallback((entry) => setGameLog((previous) => [...previous, entry]), []);
+  const addLog = useCallback(
+    (entry) => setGameLog((previous) => [...previous, entry]),
+    [],
+  );
 
   const { triggerAIMove } = useAIMove({
     jokerAssignments,
@@ -554,7 +560,7 @@ export default function MacedonianScrabble({
       if (screenRef.current === "gameOver") return;
       if (
         isMyTurnRef.current &&
-        placedTilesRef.current.length > 0 &&
+        isPlacingRef.current &&
         screenRef.current === "playing"
       )
         return;
@@ -625,18 +631,14 @@ export default function MacedonianScrabble({
   // ─── GAME START ───
   const startGame = () => {
     if (hasServerGame) return; // server owns this game
-    let bag = createTileBag();
-    const gp = setupPlayers.map((sp) => {
-      const { drawn, remainingBag } = drawTiles(bag, 7);
-      bag = remainingBag;
-      return {
-        ...sp,
-        rack: drawn,
-        score: 0,
-        skipPenalty: false,
-      };
-    });
-    setTileBag(bag);
+    const bag = createTileBag();
+    const gp = setupPlayers.map((sp) => ({
+      ...sp,
+      rack: drawTiles(bag, 7),
+      score: 0,
+      skipPenalty: false,
+    }));
+    setTileBag([...bag]);
     setPlayers(gp);
     setBoard(createEmptyBoard());
     setConfirmedBoard(createEmptyBoard());
@@ -654,14 +656,7 @@ export default function MacedonianScrabble({
     setScreen("playing");
     if (gp[0].type === "ai")
       setTimeout(
-        () =>
-          triggerAIMove(
-            gp,
-            0,
-            createEmptyBoard(),
-            bag,
-            true,
-          ),
+        () => triggerAIMove(gp, 0, createEmptyBoard(), bag, true),
         600,
       );
   };
@@ -689,6 +684,7 @@ export default function MacedonianScrabble({
   };
 
   const doPlace = (row, col, tile, displayLetter) => {
+    isPlacingRef.current = true;
     playBonusSound(row, col);
     const nb = board.map((r) => [...r]);
     nb[row][col] = { ...tile, displayLetter };
@@ -723,6 +719,7 @@ export default function MacedonianScrabble({
     const newPlaced = placedTiles.filter(
       (p) => !(p.row === row && p.col === col),
     );
+    isPlacingRef.current = newPlaced.length > 0;
     setPlacedTiles(newPlaced);
     const npl = [...players];
     npl[currentPlayer] = {
@@ -896,6 +893,7 @@ export default function MacedonianScrabble({
         );
         const data = await res.json();
         if (data.success) {
+          isPlacingRef.current = false;
           if (data.state?.status === "playing") {
             const serverState = data.state;
             const normalizedPlayers = (serverState.players ?? []).map((p) => ({
@@ -915,10 +913,15 @@ export default function MacedonianScrabble({
             setFormedWords([]);
             setTurnScore(0);
             setAiMoveDisplay(null);
-            setScreen(serverState.status === "gameOver" ? "gameOver" : "playing");
+            setScreen(
+              serverState.status === "gameOver" ? "gameOver" : "playing",
+            );
 
             const nextIndex = serverState.currentPlayerIndex ?? 0;
-            if (serverState.status !== "gameOver" && normalizedPlayers[nextIndex]?.type === "ai") {
+            if (
+              serverState.status !== "gameOver" &&
+              normalizedPlayers[nextIndex]?.type === "ai"
+            ) {
               setTimeout(
                 () =>
                   triggerAIMove(
@@ -1090,7 +1093,9 @@ export default function MacedonianScrabble({
             setScreen("playing");
           } else {
             showingChallengeResultRef.current = false;
-            setMessage(`⚠️ Грешка: ${data.error ?? "Неуспешно обработување на предизвикот."}`);
+            setMessage(
+              `⚠️ Грешка: ${data.error ?? "Неуспешно обработување на предизвикот."}`,
+            );
           }
         } else {
           setMessage(
@@ -1140,6 +1145,7 @@ export default function MacedonianScrabble({
     setPlacedTiles([]);
     setFormedWords([]);
     setTurnScore(0);
+    isPlacingRef.current = false;
   };
 
   const finalizeTurn = async () => {
@@ -1209,12 +1215,12 @@ export default function MacedonianScrabble({
       score: np[currentPlayer].score + turnScore,
     };
     const needed = 7 - np[currentPlayer].rack.length;
-    const drawn = drawTiles(tileBag, needed);
+    const { drawn, remainingBag } = drawTiles(tileBag, needed);
     np[currentPlayer] = {
       ...np[currentPlayer],
       rack: [...np[currentPlayer].rack, ...drawn],
     };
-    setTileBag([...tileBag]);
+    setTileBag(remainingBag);
     setPlayers(np);
     const newConf = board.map((r) => r.map((c) => (c ? { ...c } : null)));
     setConfirmedBoard(newConf);
@@ -1285,10 +1291,7 @@ export default function MacedonianScrabble({
     setScreen("playing");
     if (npArr[next].type === "ai") {
       const fm = isFirstMove;
-      setTimeout(
-        () => triggerAIMove(npArr, next, conf, tileBag, fm),
-        800,
-      );
+      setTimeout(() => triggerAIMove(npArr, next, conf, tileBag, fm), 800);
     }
   };
 
@@ -1884,21 +1887,20 @@ export default function MacedonianScrabble({
   // GAME OVER
   // ═══════════════════════════════════════════
   if (screen === "gameOver") {
-    
     return (
-    <GameOverScreen
-      players={players}
-      endBonuses={endBonuses}
-      styles={S}
-      message={message}
-      gameLog={gameLog}
-      onNewGame={() => setScreen("setup")}
-      onOpenLeaderboard={() => {
-        loadLeaderboard().then(setLeaderboard);
-        setScreen("leaderboard");
-      }}
-    />
-  );
+      <GameOverScreen
+        players={players}
+        endBonuses={endBonuses}
+        styles={S}
+        message={message}
+        gameLog={gameLog}
+        onNewGame={() => setScreen("setup")}
+        onOpenLeaderboard={() => {
+          loadLeaderboard().then(setLeaderboard);
+          setScreen("leaderboard");
+        }}
+      />
+    );
   }
 
   // ═══════════════════════════════════════════
@@ -2303,904 +2305,927 @@ export default function MacedonianScrabble({
         </div>
       )}
 
-
-{/* START HERE ONE SIDE */}
-  <div className="game-layout">
-    <div className="left-column">
-      {/* BOARD */}
-      {/* The main game board where players place their tiles. It is a 15x15 grid with special bonus squares. */}
-      <div
-        style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}
-      >
-        <div
-          style={{
-            display: "inline-grid",
-            gridTemplateColumns: "repeat(15, 37px)",
-            gridTemplateRows: "repeat(15, 37px)",
-            gap: 2,
-            background: "#0a0e1a",
-            padding: 6,
-            borderRadius: 12,
-            border: "1px solid rgba(99,102,241,0.12)",
-          }}
-        >
-          {Array(15)
-            .fill(null)
-            .map((_, row) =>
-              Array(15)
-                .fill(null)
-                .map((_, col) => {
-                  const cell = board[row][col];
-                  const bonus = BONUS_MAP[row][col];
-                  const isPlaced = placedTiles.some(
-                    (p) => p.row === row && p.col === col,
-                  );
-                  const bi = BONUS_COLORS_NEW[bonus];
-                  if (cell)
-                    return (
-                      <div
-                        key={`${row}-${col}`}
-                        className="board-cell"
-                        onClick={() =>
-                          isPlaced && cp?.type === "human" && isMyTurn
-                            ? removePlacedTile(row, col)
-                            : null
-                        }
-                        style={{
-                          width: 35,
-                          height: 35,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          position: "relative",
-                          background: isPlaced
-                            ? "linear-gradient(135deg, #fafafa, #f0f4ff)"
-                            : "linear-gradient(160deg, #f8fafc, #e2e8f0)",
-                          border: isPlaced
-                            ? "2px solid #6366f1"
-                            : "1px solid rgba(255,255,255,0.1)",
-                          borderRadius: 6,
-                          fontWeight: 700,
-                          fontSize: 14,
-                          color: "#0f172a",
-                          cursor:
-                            isPlaced && cp?.type === "human" && isMyTurn
-                              ? "pointer"
-                              : "default",
-                          fontFamily: "inherit",
-                          boxShadow: isPlaced
-                            ? "0 0 10px rgba(99,102,241,0.3), 0 2px 8px rgba(0,0,0,0.3)"
-                            : "0 2px 4px rgba(0,0,0,0.2)",
-                        }}
-                      >
-                        {cell.displayLetter || cell.letter}
-                        <span
-                          style={{
-                            position: "absolute",
-                            bottom: 1,
-                            right: 2,
-                            fontSize: 6,
-                            color: "#94a3b8",
-                            fontFamily: "'Space Mono', monospace",
-                          }}
-                        >
-                          {cell.letter === "★" ? "" : cell.points}
-                        </span>
-                      </div>
-                    );
-                  return (
-                    <div
-                      key={`${row}-${col}`}
-                      className="board-cell"
-                      onClick={() =>
-                        selectedTile && cp?.type === "human"
-                          ? placeTileOnBoard(row, col)
-                          : null
-                      }
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDropOnBoard(e, row, col)}
-                      style={{
-                        width: 35,
-                        height: 35,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        background: bi ? bi.bg : "#0f1520",
-                        border: bi
-                          ? `1px solid ${bi.glow}30`
-                          : "1px solid rgba(255,255,255,0.03)",
-                        borderRadius: 6,
-                        cursor:
-                          selectedTile || draggedTile ? "pointer" : "default",
-                        boxShadow: bi ? `inset 0 0 8px ${bi.glow}20` : "none",
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: bonus === "ST" ? 13 : 7,
-                          color: bi ? `${bi.glow}` : "transparent",
-                          fontWeight: 800,
-                          fontFamily: "'DM Sans', sans-serif",
-                          letterSpacing: 0,
-                        }}
-                      >
-                        {bi?.label || ""}
-                      </span>
-                    </div>
-                  );
-                }),
-            )}
-        </div>
-      </div>
-         {/* PLAYER RACK */}
-      {screen === "playing" && cp?.type === "human" && !isMyTurn && (
-        <div style={{ margin: "0 auto 8px", width: "100%", maxWidth: 575 }}>
+      {/* START HERE ONE SIDE */}
+      <div className="game-layout">
+        <div className="left-column">
+          {/* BOARD */}
+          {/* The main game board where players place their tiles. It is a 15x15 grid with special bonus squares. */}
           <div
             style={{
-              padding: "10px 14px",
-              borderRadius: 12,
-              background: "rgba(245,158,11,0.08)",
-              border: "1px solid rgba(245,158,11,0.2)",
-              color: "#fbbf24",
-              fontSize: 12,
-              fontWeight: 600,
-              textAlign: "center",
+              display: "flex",
+              justifyContent: "center",
+              marginBottom: 4,
             }}
           >
-            ⏳ Го чекаме другиот играч!
-          </div>
-        </div>
-      )}
-      {screen === "playing" &&
-        cp?.type === "human" &&
-        !isAIThinking &&
-        isMyTurn && (
-          <div style={{ margin: "0 auto", width: "100%", maxWidth: 575 }}>
             <div
-              onDragOver={handleDragOver}
-              onDrop={handleDropOnRack}
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 5,
-                padding: "8px 14px",
-                background: "rgba(20,25,39,0.95)",
-                border: "1px solid rgba(99,102,241,0.15)",
+                display: "inline-grid",
+                gridTemplateColumns: "repeat(15, 37px)",
+                gridTemplateRows: "repeat(15, 37px)",
+                gap: 2,
+                background: "#0a0e1a",
+                padding: 6,
                 borderRadius: 12,
-                marginBottom: 6,
-                width: "100%",
-                boxSizing: "border-box",
+                border: "1px solid rgba(99,102,241,0.12)",
+              }}
+            >
+              {Array(15)
+                .fill(null)
+                .map((_, row) =>
+                  Array(15)
+                    .fill(null)
+                    .map((_, col) => {
+                      const cell = board[row][col];
+                      const bonus = BONUS_MAP[row][col];
+                      const isPlaced = placedTiles.some(
+                        (p) => p.row === row && p.col === col,
+                      );
+                      const bi = BONUS_COLORS_NEW[bonus];
+                      if (cell)
+                        return (
+                          <div
+                            key={`${row}-${col}`}
+                            className="board-cell"
+                            onClick={() =>
+                              isPlaced && cp?.type === "human" && isMyTurn
+                                ? removePlacedTile(row, col)
+                                : null
+                            }
+                            style={{
+                              width: 35,
+                              height: 35,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              position: "relative",
+                              background: isPlaced
+                                ? "linear-gradient(135deg, #fafafa, #f0f4ff)"
+                                : "linear-gradient(160deg, #f8fafc, #e2e8f0)",
+                              border: isPlaced
+                                ? "2px solid #6366f1"
+                                : "1px solid rgba(255,255,255,0.1)",
+                              borderRadius: 6,
+                              fontWeight: 700,
+                              fontSize: 14,
+                              color: "#0f172a",
+                              cursor:
+                                isPlaced && cp?.type === "human" && isMyTurn
+                                  ? "pointer"
+                                  : "default",
+                              fontFamily: "inherit",
+                              boxShadow: isPlaced
+                                ? "0 0 10px rgba(99,102,241,0.3), 0 2px 8px rgba(0,0,0,0.3)"
+                                : "0 2px 4px rgba(0,0,0,0.2)",
+                            }}
+                          >
+                            {cell.displayLetter || cell.letter}
+                            <span
+                              style={{
+                                position: "absolute",
+                                bottom: 1,
+                                right: 2,
+                                fontSize: 6,
+                                color: "#94a3b8",
+                                fontFamily: "'Space Mono', monospace",
+                              }}
+                            >
+                              {cell.letter === "★" ? "" : cell.points}
+                            </span>
+                          </div>
+                        );
+                      return (
+                        <div
+                          key={`${row}-${col}`}
+                          className="board-cell"
+                          onClick={() =>
+                            selectedTile && cp?.type === "human"
+                              ? placeTileOnBoard(row, col)
+                              : null
+                          }
+                          onDragOver={handleDragOver}
+                          onDrop={(e) => handleDropOnBoard(e, row, col)}
+                          style={{
+                            width: 35,
+                            height: 35,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            background: bi ? bi.bg : "#0f1520",
+                            border: bi
+                              ? `1px solid ${bi.glow}30`
+                              : "1px solid rgba(255,255,255,0.03)",
+                            borderRadius: 6,
+                            cursor:
+                              selectedTile || draggedTile
+                                ? "pointer"
+                                : "default",
+                            boxShadow: bi
+                              ? `inset 0 0 8px ${bi.glow}20`
+                              : "none",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: bonus === "ST" ? 13 : 7,
+                              color: bi ? `${bi.glow}` : "transparent",
+                              fontWeight: 800,
+                              fontFamily: "'DM Sans', sans-serif",
+                              letterSpacing: 0,
+                            }}
+                          >
+                            {bi?.label || ""}
+                          </span>
+                        </div>
+                      );
+                    }),
+                )}
+            </div>
+          </div>
+          {/* PLAYER RACK */}
+          {screen === "playing" && cp?.type === "human" && !isMyTurn && (
+            <div style={{ margin: "0 auto 8px", width: "100%", maxWidth: 575 }}>
+              <div
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 12,
+                  background: "rgba(245,158,11,0.08)",
+                  border: "1px solid rgba(245,158,11,0.2)",
+                  color: "#fbbf24",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  textAlign: "center",
+                }}
+              >
+                ⏳ Го чекаме другиот играч!
+              </div>
+            </div>
+          )}
+          {screen === "playing" &&
+            cp?.type === "human" &&
+            !isAIThinking &&
+            isMyTurn && (
+              <div style={{ margin: "0 auto", width: "100%", maxWidth: 575 }}>
+                <div
+                  onDragOver={handleDragOver}
+                  onDrop={handleDropOnRack}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 5,
+                    padding: "8px 14px",
+                    background: "rgba(20,25,39,0.95)",
+                    border: "1px solid rgba(99,102,241,0.15)",
+                    borderRadius: 12,
+                    marginBottom: 6,
+                    width: "100%",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <div
+                    style={{
+                      color: "#334155",
+                      fontSize: 9,
+                      marginRight: 4,
+                      minWidth: 50,
+                      fontWeight: 600,
+                      letterSpacing: 1,
+                    }}
+                  >
+                    {(
+                      players[myPlayerIndex] ?? players[currentPlayer]
+                    )?.name?.toUpperCase()}
+                  </div>
+                  {(
+                    players[myPlayerIndex] ?? players[currentPlayer]
+                  )?.rack?.map((tile, i) => (
+                    <div
+                      key={tile.id}
+                      className="tile-rack"
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, tile, i)}
+                      onDragEnd={() => setDraggedTile(null)}
+                      onClick={() => selectTile(tile, i)}
+                      style={{
+                        ...tileStyle(
+                          tile,
+                          selectedTile?.id === tile.id,
+                          draggedTile?.id === tile.id,
+                        ),
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      {getDisplayLetter(tile)}
+                      <span
+                        style={{
+                          position: "absolute",
+                          bottom: 1,
+                          right: 2,
+                          fontSize: 7,
+                          color:
+                            selectedTile?.id === tile.id
+                              ? "rgba(255,255,255,0.7)"
+                              : "#94a3b8",
+                          fontFamily: "'Space Mono', monospace",
+                        }}
+                      >
+                        {tile.letter === "★" ? "" : tile.points}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 6,
+                    justifyContent: "center",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                  }}
+                >
+                  {placedTiles.length > 0 && (
+                    <button
+                      className="action-btn"
+                      onClick={confirmPlacement}
+                      style={{
+                        ...S.btn("linear-gradient(135deg, #10b981, #059669)"),
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      ✓ Потврди{" "}
+                      <span style={{ fontFamily: "'Space Mono', monospace" }}>
+                        +{turnScore}
+                      </span>
+                    </button>
+                  )}
+                  <button
+                    className="action-btn"
+                    onClick={passTurn}
+                    style={{ ...S.btnO, transition: "all 0.15s" }}
+                  >
+                    Пас
+                  </button>
+                  {placedTiles.length === 0 && (
+                    <button
+                      className="action-btn"
+                      onClick={exchangeTiles}
+                      disabled={cp.score < 5}
+                      style={{
+                        ...S.btnO,
+                        opacity: cp.score < 5 ? 0.3 : 1,
+                        cursor: cp.score < 5 ? "not-allowed" : "pointer",
+                        transition: "all 0.15s",
+                        borderColor:
+                          cp.score < 5 ? "rgba(255,255,255,0.08)" : undefined,
+                      }}
+                      title={
+                        cp.score < 5 ? "Потребни се 5 поени" : "Замени (-5 п.)"
+                      }
+                    >
+                      🔄 Замени{" "}
+                      <span style={{ fontSize: 10, opacity: 0.7 }}>−5п</span>
+                    </button>
+                  )}
+                  {placedTiles.length > 0 && (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        color: "#334155",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      Замена само пред поставување
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+          {/* FORMED WORDS PREVIEW */}
+          {formedWords.length > 0 && screen === "playing" && (
+            <div
+              style={{
+                textAlign: "center",
+                margin: "0 auto 4px",
+                padding: "6px 14px",
+                background: "rgba(16,185,129,0.08)",
+                borderRadius: 8,
+                border: "1px solid rgba(16,185,129,0.2)",
+                animation: "fadeIn 0.2s ease",
               }}
             >
               <div
                 style={{
-                  color: "#334155",
-                  fontSize: 9,
-                  marginRight: 4,
-                  minWidth: 50,
-                  fontWeight: 600,
-                  letterSpacing: 1,
+                  display: "flex",
+                  gap: 6,
+                  justifyContent: "center",
+                  flexWrap: "wrap",
+                  alignItems: "center",
                 }}
               >
-                {(
-                  players[myPlayerIndex] ?? players[currentPlayer]
-                )?.name?.toUpperCase()}
-              </div>
-              {(players[myPlayerIndex] ?? players[currentPlayer])?.rack?.map(
-                (tile, i) => (
-                  <div
-                    key={tile.id}
-                    className="tile-rack"
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, tile, i)}
-                    onDragEnd={() => setDraggedTile(null)}
-                    onClick={() => selectTile(tile, i)}
+                {formedWords.map((w, i) => (
+                  <span
+                    key={i}
                     style={{
-                      ...tileStyle(
-                        tile,
-                        selectedTile?.id === tile.id,
-                        draggedTile?.id === tile.id,
-                      ),
-                      transition: "all 0.15s ease",
+                      padding: "2px 10px",
+                      background: "rgba(16,185,129,0.15)",
+                      borderRadius: 6,
+                      fontSize: 12,
+                      color: "#34d399",
+                      fontWeight: 700,
+                      fontFamily: "'Space Mono', monospace",
                     }}
                   >
-                    {getDisplayLetter(tile)}
-                    <span
-                      style={{
-                        position: "absolute",
-                        bottom: 1,
-                        right: 2,
-                        fontSize: 7,
-                        color:
-                          selectedTile?.id === tile.id
-                            ? "rgba(255,255,255,0.7)"
-                            : "#94a3b8",
-                        fontFamily: "'Space Mono', monospace",
-                      }}
-                    >
-                      {tile.letter === "★" ? "" : tile.points}
-                    </span>
-                  </div>
-                ),
-              )}
+                    {w.word}
+                  </span>
+                ))}
+                <span
+                  style={{
+                    color: "#10b981",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    fontFamily: "'Space Mono', monospace",
+                  }}
+                >
+                  +{turnScore}
+                </span>
+                {formedWords.length > 1 && (
+                  <span style={{ color: S.muted, fontSize: 10 }}>
+                    ({formedWords.length} зборови)
+                  </span>
+                )}
+              </div>
             </div>
+          )}
+
+          {/* AI MOVE DISPLAY */}
+          {aiMoveDisplay && (
             <div
               style={{
-                display: "flex",
-                gap: 6,
-                justifyContent: "center",
-                flexWrap: "wrap",
-                alignItems: "center",
+                textAlign: "center",
+                margin: "0 auto 4px",
+                padding: "6px 14px",
+                background: "rgba(99,102,241,0.08)",
+                borderRadius: 8,
+                border: "1px solid rgba(99,102,241,0.2)",
               }}
             >
-              {placedTiles.length > 0 && (
-                <button
-                  className="action-btn"
-                  onClick={confirmPlacement}
-                  style={{
-                    ...S.btn("linear-gradient(135deg, #10b981, #059669)"),
-                    transition: "all 0.15s",
-                  }}
-                >
-                  ✓ Потврди{" "}
-                  <span style={{ fontFamily: "'Space Mono', monospace" }}>
-                    +{turnScore}
-                  </span>
-                </button>
+              <div style={{ color: "#a5b4fc", fontSize: 12 }}>
+                🤖{" "}
+                <strong style={{ fontFamily: "'Space Mono', monospace" }}>
+                  {aiMoveDisplay.words}
+                </strong>{" "}
+                <span style={{ color: "#6366f1" }}>+{aiMoveDisplay.score}</span>
+              </div>
+              {aiMoveDisplay.explanation && (
+                <div style={{ color: S.muted, fontSize: 10, marginTop: 2 }}>
+                  {aiMoveDisplay.explanation}
+                </div>
               )}
-              <button
-                className="action-btn"
-                onClick={passTurn}
-                style={{ ...S.btnO, transition: "all 0.15s" }}
-              >
-                Пас
-              </button>
-              {placedTiles.length === 0 && (
-                <button
-                  className="action-btn"
-                  onClick={exchangeTiles}
-                  disabled={cp.score < 5}
-                  style={{
-                    ...S.btnO,
-                    opacity: cp.score < 5 ? 0.3 : 1,
-                    cursor: cp.score < 5 ? "not-allowed" : "pointer",
-                    transition: "all 0.15s",
-                    borderColor:
-                      cp.score < 5 ? "rgba(255,255,255,0.08)" : undefined,
-                  }}
-                  title={
-                    cp.score < 5 ? "Потребни се 5 поени" : "Замени (-5 п.)"
-                  }
-                >
-                  🔄 Замени{" "}
-                  <span style={{ fontSize: 10, opacity: 0.7 }}>−5п</span>
-                </button>
-              )}
-              {placedTiles.length > 0 && (
-                <span
-                  style={{ fontSize: 9, color: "#334155", fontStyle: "italic" }}
-                >
-                  Замена само пред поставување
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-
-      {/* FORMED WORDS PREVIEW */}
-      {formedWords.length > 0 && screen === "playing" && (
-        <div
-          style={{
-            textAlign: "center",
-            margin: "0 auto 4px",
-            padding: "6px 14px",
-            background: "rgba(16,185,129,0.08)",
-            borderRadius: 8,
-            border: "1px solid rgba(16,185,129,0.2)",
-            animation: "fadeIn 0.2s ease",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              gap: 6,
-              justifyContent: "center",
-              flexWrap: "wrap",
-              alignItems: "center",
-            }}
-          >
-            {formedWords.map((w, i) => (
-              <span
-                key={i}
-                style={{
-                  padding: "2px 10px",
-                  background: "rgba(16,185,129,0.15)",
-                  borderRadius: 6,
-                  fontSize: 12,
-                  color: "#34d399",
-                  fontWeight: 700,
-                  fontFamily: "'Space Mono', monospace",
-                }}
-              >
-                {w.word}
-              </span>
-            ))}
-            <span
-              style={{
-                color: "#10b981",
-                fontSize: 13,
-                fontWeight: 700,
-                fontFamily: "'Space Mono', monospace",
-              }}
-            >
-              +{turnScore}
-            </span>
-            {formedWords.length > 1 && (
-              <span style={{ color: S.muted, fontSize: 10 }}>
-                ({formedWords.length} зборови)
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* AI MOVE DISPLAY */}
-      {aiMoveDisplay && (
-        <div
-          style={{
-            textAlign: "center",
-            margin: "0 auto 4px",
-            padding: "6px 14px",
-            background: "rgba(99,102,241,0.08)",
-            borderRadius: 8,
-            border: "1px solid rgba(99,102,241,0.2)",
-          }}
-        >
-          <div style={{ color: "#a5b4fc", fontSize: 12 }}>
-            🤖{" "}
-            <strong style={{ fontFamily: "'Space Mono', monospace" }}>
-              {aiMoveDisplay.words}
-            </strong>{" "}
-            <span style={{ color: "#6366f1" }}>+{aiMoveDisplay.score}</span>
-          </div>
-          {aiMoveDisplay.explanation && (
-            <div style={{ color: S.muted, fontSize: 10, marginTop: 2 }}>
-              {aiMoveDisplay.explanation}
             </div>
           )}
         </div>
-      )}
-
-   
-        </div>
-{/* SIDE ONE ENDS HERE */}
- <div className="right-column">
-       <div
-        style={{
-          textAlign: "center",
-          padding: "4px 16px",
-          fontSize: 14,
-          marginTop: "35px",
-          marginBottom: "35px",
-          margin: "0 auto 10px",
-         
-          borderRadius: 8,
-          minHeight: 24,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#94a3b8",
-          
-        }}
-      >
-       
-        Постави збор влечејќи ги буквите до таблата или со клик на посакуваното место. Потоа потврди го својот потег.
-        Другиот играч има право да го предизвика твојот збор чија валидност ќе биде проверена во речникот. 
-      </div>
-     {/* MESSAGE BAR */}
-      {/* This section displays messages to the player, such as whose turn it is or if the AI is thinking. */}
-      <div
-        style={{
-          textAlign: "center",
-          padding: "4px 16px",
-          fontSize: 12,
-          margin: "0 auto 4px",
-          background: "rgba(99,102,241,0.06)",
-          borderRadius: 8,
-          minHeight: 24,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#94a3b8",
-          border: "1px solid rgba(99,102,241,0.1)",
-        }}
-      >
-        {isAIThinking && (
-          <span
-            style={{
-              display: "inline-block",
-              animation: "aispin 1s linear infinite",
-              marginRight: 6,
-            }}
-          >
-            🤖
-          </span>
-        )}
-        {message}
-      </div>
-  {/* SCOREBOARD */} 
-      {(() => {
-        const isChallenge = screen === "challenge";
-        const decidingPlayers = isChallenge
-          ? players
-              .map((p, i) => i !== currentPlayer && p.type === "human")
-              .map((v, i) => (v ? i : -1))
-              .filter((i) => i >= 0)
-          : [currentPlayer];
-        return (
+        {/* SIDE ONE ENDS HERE */}
+        <div className="right-column">
           <div
             style={{
+              textAlign: "center",
+              padding: "4px 16px",
+              fontSize: 14,
+              marginTop: "35px",
+              marginBottom: "35px",
+              margin: "0 auto 10px",
+
+              borderRadius: 8,
+              minHeight: 24,
               display: "flex",
-              alignItems: "stretch",
+              alignItems: "center",
               justifyContent: "center",
-              gap: 6,
-              marginBottom: 4,
-              flexWrap: "wrap",
-              padding: "0 4px",
-              marginTop: "35px"
+              color: "#94a3b8",
             }}
           >
-            {players.map((p, i) => {
-              const isActive = decidingPlayers.includes(i);
-              const isCurrentTurn = i === currentPlayer && !isChallenge;
-              const highlighted = isActive || isCurrentTurn;
-              return (
-                <div
-                  key={i}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 10,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 8,
-                    minWidth: 138,
-                    width: 138,
-                    background: highlighted
-                      ? "rgba(99,102,241,0.12)"
-                      : "rgba(255,255,255,0.04)",
-                    border: highlighted
-                      ? "1px solid rgba(99,102,241,0.4)"
-                      : "1px solid rgba(255,255,255,0.08)",
-                    boxShadow: highlighted
-                      ? "inset 0 0 0 1px rgba(99,102,241,0.1)"
-                      : "none",
-                    transition: "all 0.2s",
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
+            Постави збор влечејќи ги буквите до таблата или со клик на
+            посакуваното место. Потоа потврди го својот потег. Другиот играч има
+            право да го предизвика твојот збор чија валидност ќе биде проверена
+            во речникот.
+          </div>
+          {/* MESSAGE BAR */}
+          {/* This section displays messages to the player, such as whose turn it is or if the AI is thinking. */}
+          <div
+            style={{
+              textAlign: "center",
+              padding: "4px 16px",
+              fontSize: 12,
+              margin: "0 auto 4px",
+              background: "rgba(99,102,241,0.06)",
+              borderRadius: 8,
+              minHeight: 24,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#94a3b8",
+              border: "1px solid rgba(99,102,241,0.1)",
+            }}
+          >
+            {isAIThinking && (
+              <span
+                style={{
+                  display: "inline-block",
+                  animation: "aispin 1s linear infinite",
+                  marginRight: 6,
+                }}
+              >
+                🤖
+              </span>
+            )}
+            {message}
+          </div>
+          {/* SCOREBOARD */}
+          {(() => {
+            const isChallenge = screen === "challenge";
+            const decidingPlayers = isChallenge
+              ? players
+                  .map((p, i) => i !== currentPlayer && p.type === "human")
+                  .map((v, i) => (v ? i : -1))
+                  .filter((i) => i >= 0)
+              : [currentPlayer];
+            return (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "stretch",
+                  justifyContent: "center",
+                  gap: 6,
+                  marginBottom: 4,
+                  flexWrap: "wrap",
+                  padding: "0 4px",
+                  marginTop: "35px",
+                }}
+              >
+                {players.map((p, i) => {
+                  const isActive = decidingPlayers.includes(i);
+                  const isCurrentTurn = i === currentPlayer && !isChallenge;
+                  const highlighted = isActive || isCurrentTurn;
+                  return (
                     <div
+                      key={i}
                       style={{
-                        fontSize: 10.5,
-                        fontWeight: 600,
-                        color: highlighted ? "#a5b4fc" : S.muted,
+                        padding: "8px 12px",
+                        borderRadius: 10,
                         display: "flex",
                         alignItems: "center",
-                        gap: 4,
-                        flexWrap: "wrap",
-                        lineHeight: 1.2,
+                        justifyContent: "space-between",
+                        gap: 8,
+                        minWidth: 138,
+                        width: 138,
+                        background: highlighted
+                          ? "rgba(99,102,241,0.12)"
+                          : "rgba(255,255,255,0.04)",
+                        border: highlighted
+                          ? "1px solid rgba(99,102,241,0.4)"
+                          : "1px solid rgba(255,255,255,0.08)",
+                        boxShadow: highlighted
+                          ? "inset 0 0 0 1px rgba(99,102,241,0.1)"
+                          : "none",
+                        transition: "all 0.2s",
                       }}
                     >
-                      {p.type === "ai" ? "🤖" : "👤"} {p.name}
-                      {p.skipPenalty && (
-                        <span
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
                           style={{
-                            fontSize: 9,
-                            background: "rgba(239,68,68,0.2)",
-                            color: "#ef4444",
-                            padding: "1px 5px",
-                            borderRadius: 4,
+                            fontSize: 10.5,
+                            fontWeight: 600,
+                            color: highlighted ? "#a5b4fc" : S.muted,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                            flexWrap: "wrap",
+                            lineHeight: 1.2,
                           }}
                         >
-                          пропушта
-                        </span>
-                      )}
-                      {isCurrentTurn && (
-                        <span
+                          {p.type === "ai" ? "🤖" : "👤"} {p.name}
+                          {p.skipPenalty && (
+                            <span
+                              style={{
+                                fontSize: 9,
+                                background: "rgba(239,68,68,0.2)",
+                                color: "#ef4444",
+                                padding: "1px 5px",
+                                borderRadius: 4,
+                              }}
+                            >
+                              пропушта
+                            </span>
+                          )}
+                          {isCurrentTurn && (
+                            <span
+                              style={{
+                                width: 6,
+                                height: 6,
+                                borderRadius: "50%",
+                                background: "#10b981",
+                                display: "inline-block",
+                              }}
+                            />
+                          )}
+                          {isChallenge && isActive && (
+                            <span style={{ fontSize: 9, color: "#f59e0b" }}>
+                              ⚖️
+                            </span>
+                          )}
+                        </div>
+                        <div
                           style={{
-                            width: 6,
-                            height: 6,
-                            borderRadius: "50%",
-                            background: "#10b981",
-                            display: "inline-block",
+                            fontSize: 9,
+                            color: "#334155",
+                            marginTop: 1,
                           }}
-                        />
-                      )}
-                      {isChallenge && isActive && (
-                        <span style={{ fontSize: 9, color: "#f59e0b" }}>
-                          ⚖️
-                        </span>
-                      )}
+                        >
+                          в.{p.age}
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          fontFamily: "'Space Mono', monospace",
+                          fontSize: 18,
+                          fontWeight: 700,
+                          color: highlighted ? "#a5b4fc" : "#64748b",
+                          minWidth: 28,
+                          textAlign: "right",
+                        }}
+                      >
+                        {p.score}
+                      </div>
                     </div>
-                    <div
-                      style={{ fontSize: 9, color: "#334155", marginTop: 1 }}
-                    >
-                      в.{p.age}
-                    </div>
+                  );
+                })}
+                <div
+                  style={{
+                    padding: "6px 12px",
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.05)",
+                    borderRadius: 10,
+                    textAlign: "center",
+                  }}
+                >
+                  <div
+                    style={{ fontSize: 8, color: "#334155", marginBottom: 2 }}
+                  >
+                    КЕСА
                   </div>
                   <div
                     style={{
                       fontFamily: "'Space Mono', monospace",
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: 700,
-                      color: highlighted ? "#a5b4fc" : "#64748b",
-                      minWidth: 28,
-                      textAlign: "right",
+                      color: "#475569",
                     }}
                   >
-                    {p.score}
+                    {tileBag.length}
                   </div>
                 </div>
+              </div>
+            );
+          })()}
+          {/* CHALLENGE PANEL */}
+          {screen === "challenge" &&
+            (() => {
+              const opponents = players.filter(
+                (p, i) => i !== currentPlayer && p.type === "human",
               );
-            })}
-            <div
-              style={{
-                padding: "6px 12px",
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.05)",
-                borderRadius: 10,
-                textAlign: "center",
-              }}
-            >
-              <div style={{ fontSize: 8, color: "#334155", marginBottom: 2 }}>
-                КЕСА
-              </div>
-              <div
-                style={{
-                  fontFamily: "'Space Mono', monospace",
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: "#475569",
-                }}
-              >
-                {tileBag.length}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-   {/* CHALLENGE PANEL */}
-      {screen === "challenge" &&
-        (() => {
-          const opponents = players.filter(
-            (p, i) => i !== currentPlayer && p.type === "human",
-          );
-          const opponentNames = opponents.map((o) => o.name).join(", ");
-          return (
-            <div
-              style={{
-                margin: "0 auto 4px",
-                padding: 16,
-                background: "rgba(245,158,11,0.06)",
-                borderRadius: 12,
-                border: "1px solid rgba(245,158,11,0.2)",
-                animation: "fadeIn 0.2s ease",
-              }}
-            >
-              {!challengeResult && !isValidating && (
-                <div style={{ textAlign: "center" }}>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: "#f59e0b",
-                      fontWeight: 700,
-                      marginBottom: 4,
-                      letterSpacing: 2,
-                    }}
-                  >
-                    ⚖️ ОДЛУКА — {opponentNames}
-                  </div>
-                  <div
-                    style={{ fontSize: 11, color: S.muted, marginBottom: 12 }}
-                  >
-                    {players[currentPlayer].name} постави зборови. Прифати или
-                    предизвикај:
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 4,
-                      justifyContent: "center",
-                      flexWrap: "wrap",
-                      marginBottom: 12,
-                    }}
-                  >
-                    {formedWords.map((w, i) => (
+              const opponentNames = opponents.map((o) => o.name).join(", ");
+              return (
+                <div
+                  style={{
+                    margin: "0 auto 4px",
+                    padding: 16,
+                    background: "rgba(245,158,11,0.06)",
+                    borderRadius: 12,
+                    border: "1px solid rgba(245,158,11,0.2)",
+                    animation: "fadeIn 0.2s ease",
+                  }}
+                >
+                  {!challengeResult && !isValidating && (
+                    <div style={{ textAlign: "center" }}>
                       <div
-                        key={i}
                         style={{
-                          display: "flex",
-                          borderRadius: 8,
-                          overflow: "hidden",
-                          boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                          fontSize: 10,
+                          color: "#f59e0b",
+                          fontWeight: 700,
+                          marginBottom: 4,
+                          letterSpacing: 2,
                         }}
                       >
-                        <span
-                          style={{
-                            padding: "6px 12px",
-                            background: "rgba(16,185,129,0.15)",
-                            fontSize: 13,
-                            color: "#34d399",
-                            fontWeight: 700,
-                            fontFamily: "'Space Mono', monospace",
-                            display: "flex",
-                            alignItems: "center",
-                          }}
-                        >
-                          {w.word}
-                        </span>
-                        <button
-                          onClick={() => requestWordInfo(w.word)}
-                          style={{
-                            ...S.btnSm("rgba(99,102,241,0.2)"),
-                            borderRadius: 0,
-                            color: "#a5b4fc",
-                            padding: "6px 8px",
-                          }}
-                          title="Инфо"
-                        >
-                          📖
-                        </button>
-                        <button
-                          onClick={() => challengeWord(w.word)}
-                          style={{
-                            ...S.btnSm("rgba(239,68,68,0.6)"),
-                            borderRadius: 0,
-                            padding: "6px 10px",
-                            color: "#fff",
-                          }}
-                        >
-                          🔍
-                        </button>
+                        ⚖️ ОДЛУКА — {opponentNames}
                       </div>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => finalizeTurn()}
-                    style={{
-                      ...S.btn("linear-gradient(135deg, #10b981, #059669)"),
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    ✅ Прифати ({turnScore} п.)
-                  </button>
-                  {isLoadingInfo && (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: S.muted,
+                          marginBottom: 12,
+                        }}
+                      >
+                        {players[currentPlayer].name} постави зборови. Прифати
+                        или предизвикај:
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 4,
+                          justifyContent: "center",
+                          flexWrap: "wrap",
+                          marginBottom: 12,
+                        }}
+                      >
+                        {formedWords.map((w, i) => (
+                          <div
+                            key={i}
+                            style={{
+                              display: "flex",
+                              borderRadius: 8,
+                              overflow: "hidden",
+                              boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                            }}
+                          >
+                            <span
+                              style={{
+                                padding: "6px 12px",
+                                background: "rgba(16,185,129,0.15)",
+                                fontSize: 13,
+                                color: "#34d399",
+                                fontWeight: 700,
+                                fontFamily: "'Space Mono', monospace",
+                                display: "flex",
+                                alignItems: "center",
+                              }}
+                            >
+                              {w.word}
+                            </span>
+                            <button
+                              onClick={() => requestWordInfo(w.word)}
+                              style={{
+                                ...S.btnSm("rgba(99,102,241,0.2)"),
+                                borderRadius: 0,
+                                color: "#a5b4fc",
+                                padding: "6px 8px",
+                              }}
+                              title="Инфо"
+                            >
+                              📖
+                            </button>
+                            <button
+                              onClick={() => challengeWord(w.word)}
+                              style={{
+                                ...S.btnSm("rgba(239,68,68,0.6)"),
+                                borderRadius: 0,
+                                padding: "6px 10px",
+                                color: "#fff",
+                              }}
+                            >
+                              🔍
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => finalizeTurn()}
+                        style={{
+                          ...S.btn("linear-gradient(135deg, #10b981, #059669)"),
+                          transition: "all 0.2s",
+                        }}
+                      >
+                        ✅ Прифати ({turnScore} п.)
+                      </button>
+                      {isLoadingInfo && (
+                        <div
+                          style={{
+                            color: "#a5b4fc",
+                            fontSize: 11,
+                            marginTop: 8,
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "inline-block",
+                              animation: "aispin 1s linear infinite",
+                              marginRight: 4,
+                            }}
+                          >
+                            📖
+                          </span>
+                          Се вчитува...
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {isValidating && (
                     <div
-                      style={{ color: "#a5b4fc", fontSize: 11, marginTop: 8 }}
+                      style={{
+                        textAlign: "center",
+                        color: "#a5b4fc",
+                        fontSize: 12,
+                        padding: "8px 0",
+                      }}
                     >
                       <span
                         style={{
                           display: "inline-block",
                           animation: "aispin 1s linear infinite",
-                          marginRight: 4,
+                          marginRight: 6,
                         }}
                       >
-                        📖
+                        🤖
                       </span>
-                      Се вчитува...
+                      Агент пребарува во МК речници...
+                    </div>
+                  )}
+                  {challengeResult && (
+                    <div style={{ textAlign: "center" }}>
+                      <div
+                        style={{
+                          padding: 12,
+                          borderRadius: 10,
+                          marginBottom: 12,
+                          background: "rgba(0,0,0,0.25)",
+                          border: `1px solid ${challengeResult.valid ? "rgba(16,185,129,0.3)" : challengeResult.valid === false ? "rgba(239,68,68,0.3)" : "rgba(245,158,11,0.3)"}`,
+                        }}
+                      >
+                        <div style={{ fontSize: 18, marginBottom: 4 }}>
+                          {challengeResult.valid
+                            ? "✅"
+                            : challengeResult.valid === false
+                              ? "❌"
+                              : "⚠️"}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 700,
+                            fontFamily: "'Space Mono', monospace",
+                            color: challengeResult.valid
+                              ? "#34d399"
+                              : challengeResult.valid === false
+                                ? "#f87171"
+                                : "#fbbf24",
+                            marginBottom: 4,
+                          }}
+                        >
+                          {challengeResult.word}
+                        </div>
+                        <div style={{ fontSize: 11, color: S.muted }}>
+                          {challengeResult.explanation}
+                        </div>
+                        {challengeResult.definition && (
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: "#94a3b8",
+                              fontStyle: "italic",
+                              marginTop: 4,
+                            }}
+                          >
+                            📖 {challengeResult.definition}
+                          </div>
+                        )}
+                        {challengeResult.valid === true && (
+                          <div
+                            style={{
+                              fontSize: 10,
+                              color: "#f59e0b",
+                              marginTop: 6,
+                              fontWeight: 600,
+                            }}
+                          >
+                            ⚠️ {opponentNames} го губи следниот ред!
+                          </div>
+                        )}
+                        {challengeResult.valid === false && (
+                          <div
+                            style={{
+                              fontSize: 10,
+                              color: "#f87171",
+                              marginTop: 6,
+                              fontWeight: 600,
+                            }}
+                          >
+                            ✅ Успешен предизвик! Плочките се вратени.
+                          </div>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          justifyContent: "center",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        {challengeResult.valid === true && (
+                          <>
+                            <button
+                              onClick={() => {
+                                showingChallengeResultRef.current = false;
+                                setChallengeResult(null);
+                                setScreen("playing");
+                              }}
+                              style={S.btn(
+                                "linear-gradient(135deg, #10b981, #059669)",
+                              )}
+                            >
+                              Продолжи
+                            </button>
+                            <button
+                              onClick={() =>
+                                requestWordInfo(challengeResult.word)
+                              }
+                              style={S.btnO}
+                            >
+                              📖 Инфо
+                            </button>
+                          </>
+                        )}
+                        {challengeResult.valid === false && (
+                          <>
+                            <button
+                              onClick={() => {
+                                showingChallengeResultRef.current = false;
+                                setChallengeResult(null);
+                                setScreen("playing");
+                              }}
+                              style={S.btn(
+                                "linear-gradient(135deg, #f59e0b, #d97706)",
+                              )}
+                            >
+                              🔄 Врати плочки
+                            </button>
+                          </>
+                        )}
+                        {challengeResult.valid === null && (
+                          <>
+                            <button
+                              onClick={() => {
+                                showingChallengeResultRef.current = false;
+                                setChallengeResult(null);
+                                setScreen("playing");
+                              }}
+                              style={S.btn(
+                                "linear-gradient(135deg, #10b981, #059669)",
+                              )}
+                            >
+                              Прифати
+                            </button>
+                            <button
+                              onClick={() => {
+                                setChallengeResult(null);
+                                setScreen("playing");
+                                setMessage(
+                                  `${players[currentPlayer].name} — пробај повторно!`,
+                                );
+                              }}
+                              style={S.btn(
+                                "linear-gradient(135deg, #f59e0b, #d97706)",
+                              )}
+                            >
+                              🔄 Врати
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
-              )}
-              {isValidating && (
-                <div
-                  style={{
-                    textAlign: "center",
-                    color: "#a5b4fc",
-                    fontSize: 12,
-                    padding: "8px 0",
-                  }}
-                >
-                  <span
-                    style={{
-                      display: "inline-block",
-                      animation: "aispin 1s linear infinite",
-                      marginRight: 6,
-                    }}
-                  >
-                    🤖
-                  </span>
-                  Агент пребарува во МК речници...
-                </div>
-              )}
-              {challengeResult && (
-                <div style={{ textAlign: "center" }}>
-                  <div
-                    style={{
-                      padding: 12,
-                      borderRadius: 10,
-                      marginBottom: 12,
-                      background: "rgba(0,0,0,0.25)",
-                      border: `1px solid ${challengeResult.valid ? "rgba(16,185,129,0.3)" : challengeResult.valid === false ? "rgba(239,68,68,0.3)" : "rgba(245,158,11,0.3)"}`,
-                    }}
-                  >
-                    <div style={{ fontSize: 18, marginBottom: 4 }}>
-                      {challengeResult.valid
-                        ? "✅"
-                        : challengeResult.valid === false
-                          ? "❌"
-                          : "⚠️"}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 700,
-                        fontFamily: "'Space Mono', monospace",
-                        color: challengeResult.valid
-                          ? "#34d399"
-                          : challengeResult.valid === false
-                            ? "#f87171"
-                            : "#fbbf24",
-                        marginBottom: 4,
-                      }}
-                    >
-                      {challengeResult.word}
-                    </div>
-                    <div style={{ fontSize: 11, color: S.muted }}>
-                      {challengeResult.explanation}
-                    </div>
-                    {challengeResult.definition && (
-                      <div
-                        style={{
-                          fontSize: 11,
-                          color: "#94a3b8",
-                          fontStyle: "italic",
-                          marginTop: 4,
-                        }}
-                      >
-                        📖 {challengeResult.definition}
-                      </div>
-                    )}
-                    {challengeResult.valid === true && (
-                      <div
-                        style={{
-                          fontSize: 10,
-                          color: "#f59e0b",
-                          marginTop: 6,
-                          fontWeight: 600,
-                        }}
-                      >
-                        ⚠️ {opponentNames} го губи следниот ред!
-                      </div>
-                    )}
-                    {challengeResult.valid === false && (
-                      <div
-                        style={{
-                          fontSize: 10,
-                          color: "#f87171",
-                          marginTop: 6,
-                          fontWeight: 600,
-                        }}
-                      >
-                        ✅ Успешен предизвик! Плочките се вратени.
-                      </div>
-                    )}
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      justifyContent: "center",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    {challengeResult.valid === true && (
-                      <>
-                        <button
-                          onClick={() => {
-                            showingChallengeResultRef.current = false;
-                            setChallengeResult(null);
-                            setScreen("playing");
-                          }}
-                          style={S.btn(
-                            "linear-gradient(135deg, #10b981, #059669)",
-                          )}
-                        >
-                          Продолжи
-                        </button>
-                        <button
-                          onClick={() => requestWordInfo(challengeResult.word)}
-                          style={S.btnO}
-                        >
-                          📖 Инфо
-                        </button>
-                      </>
-                    )}
-                    {challengeResult.valid === false && (
-                      <>
-                        <button
-                          onClick={() => {
-                            showingChallengeResultRef.current = false;
-                            setChallengeResult(null);
-                            setScreen("playing");
-                          }}
-                          style={S.btn(
-                            "linear-gradient(135deg, #f59e0b, #d97706)",
-                          )}
-                        >
-                          🔄 Врати плочки
-                        </button>
-                      </>
-                    )}
-                    {challengeResult.valid === null && (
-                      <>
-                        <button
-                          onClick={() => {
-                            showingChallengeResultRef.current = false;
-                            setChallengeResult(null);
-                            setScreen("playing");
-                          }}
-                          style={S.btn(
-                            "linear-gradient(135deg, #10b981, #059669)",
-                          )}
-                        >
-                          Прифати
-                        </button>
-                        <button
-                          onClick={() => {
-                            setChallengeResult(null);
-                            setScreen("playing");
-                            setMessage(
-                              `${players[currentPlayer].name} — пробај повторно!`,
-                            );
-                          }}
-                          style={S.btn(
-                            "linear-gradient(135deg, #f59e0b, #d97706)",
-                          )}
-                        >
-                          🔄 Врати
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })()}
+              );
+            })()}
 
-   
-      {/* GAME LOG */}
-      {gameLog.length > 0 && (
-        <div
-          className="game-log"
-          style={{
-            padding: "6px 10px",
-            background: "rgba(0,0,0,0.2)",
-            borderRadius: 8,
-            maxHeight: 60,
-            overflow: "auto",
-          }}
-        >
-          {gameLog.slice(-6).map((e, i) => (
+          {/* GAME LOG */}
+          {gameLog.length > 0 && (
             <div
-              key={i}
+              className="game-log"
               style={{
-                color: "#334155",
-                fontSize: 9,
-                fontFamily: "'Space Mono', monospace",
-                marginBottom: 1,
+                padding: "6px 10px",
+                background: "rgba(0,0,0,0.2)",
+                borderRadius: 8,
+                maxHeight: 60,
+                overflow: "auto",
               }}
             >
-              {e}
+              {gameLog.slice(-6).map((e, i) => (
+                <div
+                  key={i}
+                  style={{
+                    color: "#334155",
+                    fontSize: 9,
+                    fontFamily: "'Space Mono', monospace",
+                    marginBottom: 1,
+                  }}
+                >
+                  {e}
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
-      )}
-    </div>
-    </div>
+      </div>
     </div>
   );
 }

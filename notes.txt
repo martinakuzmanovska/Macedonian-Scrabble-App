@@ -1,7 +1,6 @@
 Notes on how things are going 
 
-Bug: After a declined word, gets stuck on waiting screen 
-
-Description:
-1. Once challanged the game is stuck on waiting for the user that is challanged.
-2. The user challanging can put their word in but screen gets stuck on waiting since the other player is stuck 
+Things that are not sitting right with me:
+the AI is taking too long to think
+Visual problems
+Selecting the board sometimes glitches

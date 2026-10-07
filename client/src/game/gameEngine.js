@@ -347,19 +347,35 @@ export function assignJoker(state, tileId, letter) {
 export function finalizeTurn(state) {
   const { currentPlayerIndex, turnScore, formedWords, placedTiles, players, tileBag } = state;
 
-  // Award score
-  let updatedPlayers = players.map((p, i) => {
-    if (i !== currentPlayerIndex) return p;
-    return { ...p, score: p.score + turnScore };
+  console.log("[finalizeTurn] debug", {
+    currentPlayerIndex,
+    rackBefore: players[currentPlayerIndex].rack.map(t => t.id),
+    placedTileIds: placedTiles.map(p => p.tile?.id),
   });
 
-  // Draw replacement tiles
+  const placedTileIds = new Set(placedTiles.map(p => p.tile?.id).filter(Boolean));
+
+  let updatedPlayers = players.map((p, i) => {
+    if (i !== currentPlayerIndex) return p;
+    const rackWithoutPlaced = p.rack.filter(t => !placedTileIds.has(t.id));
+    return { ...p, score: p.score + turnScore, rack: rackWithoutPlaced };
+  });
+
+  console.log("[finalizeTurn] rack after removal", {
+    rackAfter: updatedPlayers[currentPlayerIndex].rack.map(t => t.id),
+  });
+
   const needed = 7 - updatedPlayers[currentPlayerIndex].rack.length;
   const { drawn, remainingBag } = drawTiles(tileBag, needed);
   updatedPlayers = updatedPlayers.map((p, i) => {
     if (i !== currentPlayerIndex) return p;
     return { ...p, rack: [...p.rack, ...drawn] };
   });
+
+  console.log("[finalizeTurn] rack after draw", {
+    rackFinal: updatedPlayers[currentPlayerIndex].rack.map(t => t.id),
+  });
+
 
   // Freeze the board
   const newConfirmedBoard = state.board.map(row => row.map(cell => cell ? { ...cell } : null));

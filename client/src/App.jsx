@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./hooks/useAuth.js";
 import { useGame } from "./hooks/useGame.js";
-import LoginScreen  from "./components/LoginScreen.jsx";
+import LoginScreen  from "./components/LoginScreen.jsx"
 import Lobby        from "./components/Lobby.jsx";
 import InviteScreen from "./components/InviteScreen.jsx";
 import MacedonianScrabble from "./scrabble.jsx";
