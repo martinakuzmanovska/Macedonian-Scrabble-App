@@ -14,14 +14,36 @@ export default function ChallengeModal({
   onClose,
   onRetry,
 }) {
+  const palette = {
+    shell: "rgba(41, 43, 41, 0.18)",
+    cardBg: "var(--card)",
+    cardBorder: "var(--border)",
+    cardShadow: "var(--surface-shadow)",
+    title: "var(--primary)",
+    text: "var(--foreground)",
+    subText: "var(--muted-foreground)",
+    accentSoft: "var(--secondary)",
+    success: "var(--primary)",
+    warning: "oklch(0.79 0.08 36)",
+    danger: "oklch(0.66 0.12 24)",
+  };
+
+  const actionButton = (bg, fg = "#fff") => ({
+    ...theme.btn(bg),
+    color: fg,
+    border: "1px solid transparent",
+    boxShadow: "0 4px 12px oklch(0.32 0.04 150 / 0.12)",
+    transition: "transform 0.15s ease, boxShadow 0.15s ease",
+  });
+
   return (
     <div
       style={{
         position: "fixed",
         inset: 0,
         zIndex: 1000,
-        background: "rgba(0,0,0,0.72)",
-        backdropFilter: "blur(8px)",
+        background: palette.shell,
+        backdropFilter: "blur(6px)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -30,10 +52,14 @@ export default function ChallengeModal({
     >
       <div
         style={{
-          ...theme.card,
+          background: palette.cardBg,
+          border: `1px solid ${palette.cardBorder}`,
+          borderRadius: 18,
+          boxShadow: palette.cardShadow,
           width: "min(440px, calc(100vw - 32px))",
           padding: 28,
           position: "relative",
+          color: palette.text,
         }}
       >
         <button
@@ -45,11 +71,14 @@ export default function ChallengeModal({
             width: 30,
             height: 30,
             borderRadius: 8,
-            border: "none",
-            background: "rgba(255,255,255,0.06)",
-            color: theme.muted,
+            border: "1px solid var(--border)",
+            background: "var(--muted)",
+            color: "var(--muted-foreground)",
             fontSize: 16,
             cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
           ✕
@@ -60,19 +89,21 @@ export default function ChallengeModal({
             <div
               style={{
                 fontSize: 10,
-                color: "#f59e0b",
-                fontWeight: 700,
+                color: palette.title,
+                fontWeight: 800,
                 marginBottom: 8,
-                letterSpacing: 2,
+                letterSpacing: 2.2,
+                textTransform: "uppercase",
               }}
             >
-              ⚖️ ОДЛУКА — {opponentNames}
+              ⚖️ Одлука — {opponentNames}
             </div>
             <div
               style={{
                 fontSize: 11,
-                color: theme.muted,
+                color: palette.subText,
                 marginBottom: 16,
+                lineHeight: 1.5,
               }}
             >
               {players[currentPlayer].name} постави зборови. Прифати или
@@ -81,10 +112,10 @@ export default function ChallengeModal({
             <div
               style={{
                 display: "flex",
-                gap: 4,
+                gap: 6,
                 justifyContent: "center",
                 flexWrap: "wrap",
-                marginBottom: 16,
+                marginBottom: 18,
               }}
             >
               {formedWords.map((w, i) => (
@@ -92,18 +123,19 @@ export default function ChallengeModal({
                   key={i}
                   style={{
                     display: "flex",
-                    borderRadius: 8,
+                    borderRadius: 10,
                     overflow: "hidden",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                    border: "1px solid var(--border)",
+                    boxShadow: "0 2px 8px oklch(0.3 0.03 150 / 0.08)",
                   }}
                 >
                   <span
                     style={{
-                      padding: "6px 12px",
-                      background: "rgba(16,185,129,0.15)",
+                      padding: "7px 12px",
+                      background: "var(--secondary)",
                       fontSize: 13,
-                      color: "#34d399",
-                      fontWeight: 700,
+                      color: "var(--primary)",
+                      fontWeight: 800,
                       fontFamily: "'Space Mono', monospace",
                       display: "flex",
                       alignItems: "center",
@@ -114,10 +146,13 @@ export default function ChallengeModal({
                   <button
                     onClick={() => requestWordInfo(w.word)}
                     style={{
-                      ...theme.btnSm("rgba(99,102,241,0.2)"),
                       borderRadius: 0,
-                      color: "#a5b4fc",
-                      padding: "6px 8px",
+                      border: "none",
+                      padding: "7px 9px",
+                      background: "var(--muted)",
+                      color: "var(--primary)",
+                      cursor: "pointer",
+                      fontSize: 12,
                     }}
                     title="Инфо"
                   >
@@ -126,10 +161,13 @@ export default function ChallengeModal({
                   <button
                     onClick={() => challengeWord(w.word)}
                     style={{
-                      ...theme.btnSm("rgba(239,68,68,0.6)"),
                       borderRadius: 0,
-                      padding: "6px 10px",
+                      border: "none",
+                      padding: "7px 10px",
+                      background: "oklch(0.82 0.085 18)",
                       color: "#fff",
+                      cursor: "pointer",
+                      fontSize: 12,
                     }}
                   >
                     🔍
@@ -139,17 +177,16 @@ export default function ChallengeModal({
             </div>
             <button
               onClick={() => finalizeTurn()}
-              style={{
-                ...theme.btn("linear-gradient(135deg, #10b981, #059669)"),
-                transition: "all 0.2s",
-              }}
+              style={actionButton(
+                "linear-gradient(135deg, var(--primary), oklch(0.59 0.065 151))",
+              )}
             >
               ✅ Прифати ({turnScore} п.)
             </button>
             {isLoadingInfo && (
               <div
                 style={{
-                  color: "#a5b4fc",
+                  color: "var(--primary)",
                   fontSize: 11,
                   marginTop: 12,
                 }}
@@ -173,7 +210,7 @@ export default function ChallengeModal({
           <div
             style={{
               textAlign: "center",
-              color: "#a5b4fc",
+              color: "var(--primary)",
               fontSize: 12,
               padding: "8px 0",
             }}
@@ -195,16 +232,16 @@ export default function ChallengeModal({
           <div style={{ textAlign: "center" }}>
             <div
               style={{
-                padding: 12,
-                borderRadius: 10,
+                padding: 16,
+                borderRadius: 12,
                 marginBottom: 12,
-                background: "rgba(0,0,0,0.25)",
+                background: "var(--muted)",
                 border: `1px solid ${
                   challengeResult.valid
-                    ? "rgba(16,185,129,0.3)"
+                    ? "oklch(0.7 0.12 145 / 0.35)"
                     : challengeResult.valid === false
-                      ? "rgba(239,68,68,0.3)"
-                      : "rgba(245,158,11,0.3)"
+                      ? "oklch(0.66 0.12 24 / 0.35)"
+                      : "oklch(0.79 0.08 36 / 0.35)"
                 }`,
               }}
             >
@@ -218,28 +255,28 @@ export default function ChallengeModal({
               <div
                 style={{
                   fontSize: 14,
-                  fontWeight: 700,
+                  fontWeight: 800,
                   fontFamily: "'Space Mono', monospace",
                   color: challengeResult.valid
-                    ? "#34d399"
+                    ? "var(--primary)"
                     : challengeResult.valid === false
-                      ? "#f87171"
-                      : "#fbbf24",
-                  marginBottom: 4,
+                      ? palette.danger
+                      : palette.warning,
+                  marginBottom: 6,
                 }}
               >
                 {challengeResult.word}
               </div>
-              <div style={{ fontSize: 11, color: theme.muted }}>
+              <div style={{ fontSize: 11, color: palette.subText }}>
                 {challengeResult.explanation}
               </div>
               {challengeResult.definition && (
                 <div
                   style={{
                     fontSize: 11,
-                    color: "#94a3b8",
+                    color: "var(--muted-foreground)",
                     fontStyle: "italic",
-                    marginTop: 4,
+                    marginTop: 6,
                   }}
                 >
                   📖 {challengeResult.definition}
@@ -249,9 +286,9 @@ export default function ChallengeModal({
                 <div
                   style={{
                     fontSize: 10,
-                    color: "#f59e0b",
-                    marginTop: 6,
-                    fontWeight: 600,
+                    color: palette.warning,
+                    marginTop: 8,
+                    fontWeight: 700,
                   }}
                 >
                   ⚠️ {opponentNames} го губи следниот ред!
@@ -261,9 +298,9 @@ export default function ChallengeModal({
                 <div
                   style={{
                     fontSize: 10,
-                    color: "#f87171",
-                    marginTop: 6,
-                    fontWeight: 600,
+                    color: palette.danger,
+                    marginTop: 8,
+                    fontWeight: 700,
                   }}
                 >
                   ✅ Успешен предизвик! Плочките се вратени.
@@ -282,15 +319,19 @@ export default function ChallengeModal({
                 <>
                   <button
                     onClick={onClose}
-                    style={theme.btn(
-                      "linear-gradient(135deg, #10b981, #059669)",
+                    style={actionButton(
+                      "linear-gradient(135deg, var(--primary), oklch(0.59 0.065 151))",
                     )}
                   >
                     Продолжи
                   </button>
                   <button
                     onClick={() => requestWordInfo(challengeResult.word)}
-                    style={theme.btnO}
+                    style={{
+                      ...theme.btnO,
+                      borderColor: "var(--border)",
+                      color: "var(--primary)",
+                    }}
                   >
                     📖 Инфо
                   </button>
@@ -299,7 +340,9 @@ export default function ChallengeModal({
               {challengeResult.valid === false && (
                 <button
                   onClick={onClose}
-                  style={theme.btn("linear-gradient(135deg, #f59e0b, #d97706)")}
+                  style={actionButton(
+                    "linear-gradient(135deg, oklch(0.76 0.08 36), oklch(0.68 0.1 24))",
+                  )}
                 >
                   🔄 Врати плочки
                 </button>
@@ -308,15 +351,17 @@ export default function ChallengeModal({
                 <>
                   <button
                     onClick={onClose}
-                    style={theme.btn(
-                      "linear-gradient(135deg, #10b981, #059669)",
+                    style={actionButton(
+                      "linear-gradient(135deg, var(--primary), oklch(0.59 0.065 151))",
                     )}
                   >
                     Прифати
                   </button>
                   <button
                     onClick={onRetry}
-                    style={theme.btn("linear-gradient(135deg, #f59e0b, #d97706)")}
+                    style={actionButton(
+                      "linear-gradient(135deg, oklch(0.76 0.08 36), oklch(0.68 0.1 24))",
+                    )}
                   >
                     🔄 Врати
                   </button>

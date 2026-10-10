@@ -1,17 +1,17 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import * as Tone from "tone";
 import { useAIMove } from "./hooks/useAIMove.js";
 import SetupScreen from "./components/SetupScreen.jsx";
 import GameOverScreen from "./components/GameOverScreen.jsx";
 import ScrabbleBoard from "./components/ScrabbleBoard.jsx";
 import ChallengeModal from "./components/ChallengeModal.jsx";
+import WaitingChallengeModal from "./components/WaitingChallengeModal.jsx";
+import JokerModal from "./components/JokerModal.jsx";
+import PlayerRack from "./components/PlayerRack.jsx";
+import WordInfoModal from "./components/WordInfoModal.jsx";
+import LeaderboardScreen from "./components/LeaderboardScreen.jsx";
+import GameSidebar from "./components/GameSidebar.jsx";
 
-import {
-  TILE_CONFIG,
-  MK_LETTERS,
-  BONUS_MAP,
-  getPoints,
-} from "./game/constants";
+import { MK_LETTERS, BONUS_MAP, getPoints } from "./game/constants";
 
 import {
   createTileBag,
@@ -23,299 +23,8 @@ import {
   loadLeaderboard,
   updateLeaderboard,
 } from "./services/leaderboardService.js";
-// ═══════════════════════════════════════════
-// SOUND SYSTEM
-// ═══════════════════════════════════════════
-let audioStarted = false;
-async function ensureAudio() {
-  if (!audioStarted) {
-    await Tone.start();
-    audioStarted = true;
-  }
-}
-
-const SFX = {
-  tilePickup: () => {
-    ensureAudio();
-    const synth = new Tone.Synth({
-      oscillator: { type: "triangle" },
-      envelope: { attack: 0.005, decay: 0.08, sustain: 0, release: 0.05 },
-      volume: -12,
-    }).toDestination();
-    synth.triggerAttackRelease("C5", "0.04");
-    setTimeout(() => synth.dispose(), 200);
-  },
-  tileDrop: () => {
-    ensureAudio();
-    const synth = new Tone.MembraneSynth({
-      pitchDecay: 0.02,
-      octaves: 2,
-      envelope: { attack: 0.001, decay: 0.15, sustain: 0, release: 0.1 },
-      volume: -8,
-    }).toDestination();
-    synth.triggerAttackRelease("G2", "0.1");
-    setTimeout(() => synth.dispose(), 300);
-  },
-  tileReturn: () => {
-    ensureAudio();
-    const synth = new Tone.Synth({
-      oscillator: { type: "sine" },
-      envelope: { attack: 0.01, decay: 0.12, sustain: 0, release: 0.05 },
-      volume: -14,
-    }).toDestination();
-    synth.triggerAttackRelease("E4", "0.06");
-    setTimeout(() => synth.dispose(), 200);
-  },
-  bonusDL: () => {
-    ensureAudio();
-    const synth = new Tone.Synth({
-      oscillator: { type: "triangle" },
-      envelope: { attack: 0.01, decay: 0.15, sustain: 0.05, release: 0.1 },
-      volume: -8,
-    }).toDestination();
-    synth.triggerAttackRelease("E5", "0.12");
-    setTimeout(() => synth.dispose(), 300);
-  },
-  bonusTL: () => {
-    ensureAudio();
-    const synth = new Tone.Synth({
-      oscillator: { type: "sawtooth" },
-      envelope: { attack: 0.01, decay: 0.2, sustain: 0.05, release: 0.1 },
-      volume: -10,
-    }).toDestination();
-    synth.triggerAttackRelease("A5", "0.15");
-    setTimeout(() => synth.dispose(), 400);
-  },
-  bonusDW: () => {
-    ensureAudio();
-    const synth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: "triangle" },
-      envelope: { attack: 0.01, decay: 0.25, sustain: 0.05, release: 0.15 },
-      volume: -8,
-    }).toDestination();
-    synth.triggerAttackRelease(["C5", "E5"], "0.15");
-    setTimeout(() => synth.dispose(), 500);
-  },
-  bonusTW: () => {
-    ensureAudio();
-    const synth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: "sawtooth" },
-      envelope: { attack: 0.01, decay: 0.3, sustain: 0.08, release: 0.2 },
-      volume: -8,
-    }).toDestination();
-    synth.triggerAttackRelease(["C5", "E5", "G5"], "0.2");
-    setTimeout(() => synth.dispose(), 600);
-  },
-  wordSuccess: () => {
-    ensureAudio();
-    const synth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: "triangle" },
-      envelope: { attack: 0.02, decay: 0.3, sustain: 0.1, release: 0.3 },
-      volume: -6,
-    }).toDestination();
-    const now = Tone.now();
-    synth.triggerAttackRelease("C5", "0.15", now);
-    synth.triggerAttackRelease("E5", "0.15", now + 0.1);
-    synth.triggerAttackRelease("G5", "0.15", now + 0.2);
-    synth.triggerAttackRelease("C6", "0.3", now + 0.3);
-    setTimeout(() => synth.dispose(), 1200);
-  },
-  challengeValid: () => {
-    ensureAudio();
-    const synth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: "square" },
-      envelope: { attack: 0.01, decay: 0.2, sustain: 0.05, release: 0.15 },
-      volume: -10,
-    }).toDestination();
-    const now = Tone.now();
-    synth.triggerAttackRelease("G4", "0.1", now);
-    synth.triggerAttackRelease("C5", "0.2", now + 0.12);
-    setTimeout(() => synth.dispose(), 600);
-  },
-  challengeInvalid: () => {
-    ensureAudio();
-    const synth = new Tone.Synth({
-      oscillator: { type: "sawtooth" },
-      envelope: { attack: 0.01, decay: 0.3, sustain: 0, release: 0.2 },
-      volume: -8,
-    }).toDestination();
-    const now = Tone.now();
-    synth.triggerAttackRelease("E4", "0.15", now);
-    synth.triggerAttackRelease("Bb3", "0.3", now + 0.15);
-    setTimeout(() => synth.dispose(), 800);
-  },
-  gameOver: () => {
-    ensureAudio();
-    const synth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: "triangle" },
-      envelope: { attack: 0.03, decay: 0.4, sustain: 0.15, release: 0.5 },
-      volume: -4,
-    }).toDestination();
-    const now = Tone.now();
-    synth.triggerAttackRelease(["C4", "E4", "G4"], "0.3", now);
-    synth.triggerAttackRelease(["C4", "F4", "A4"], "0.3", now + 0.35);
-    synth.triggerAttackRelease(["C4", "E4", "G4"], "0.3", now + 0.7);
-    synth.triggerAttackRelease(["C5", "E5", "G5"], "0.6", now + 1.05);
-    setTimeout(() => synth.dispose(), 2500);
-  },
-  bonusAwarded: () => {
-    ensureAudio();
-    const synth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: "triangle" },
-      envelope: { attack: 0.02, decay: 0.2, sustain: 0.1, release: 0.2 },
-      volume: -6,
-    }).toDestination();
-    const now = Tone.now();
-    synth.triggerAttackRelease("E5", "0.1", now);
-    synth.triggerAttackRelease("G5", "0.1", now + 0.08);
-    synth.triggerAttackRelease("B5", "0.1", now + 0.16);
-    synth.triggerAttackRelease("E6", "0.25", now + 0.24);
-    setTimeout(() => synth.dispose(), 800);
-  },
-};
-
-function playBonusSound(row, col) {
-  const b = BONUS_MAP[row]?.[col];
-  if (b === "TW") SFX.bonusTW();
-  else if (b === "TL") SFX.bonusTL();
-  else if (b === "DW" || b === "ST") SFX.bonusDW();
-  else if (b === "DL") SFX.bonusDL();
-  else SFX.tileDrop();
-}
-
-// ═══════════════════════════════════════════
-// MACEDONIAN SCRABBLE - ПОЛНО ИЗДАНИЕ
-// Drag & Drop, Речник валидација, Инфо за зборови
-// ═══════════════════════════════════════════
-
-// ═══════════════════════════════════════════
-// AI WORD VALIDATION — Дигитален Речник
-// ═══════════════════════════════════════════
-async function validateWordWithAI(word) {
-  try {
-    const res = await fetch("/api/challenge", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ word }),
-    });
-
-    console.log("Response status:", res.status);
-    const data = await res.json();
-    console.log("Response data:", data);
-
-    return {
-      valid: data.valid ?? null,
-      explanation: data.valid
-        ? `Зборот "${word}" е валиден македонски збор.`
-        : `Зборот "${word}" не е пронајден во речникот.`,
-      definition: data.definition || "",
-      source: "Македонски.гов.мк",
-    };
-  } catch (err) {
-    console.error("validateWordWithAI error:", err);
-    throw err;
-  }
-  //   try {
-  //     const response = await fetch("https://api.anthropic.com/v1/messages", {
-  //       method: "POST", headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify({
-  //         model: "claude-sonnet-4-20250514", max_tokens: 1500,
-  //         tools: [{ type: "web_search_20250305", name: "web_search" }],
-  //         messages: [{ role: "user", content: `Ти си судија во македонски Скрабл. Треба да провериш дали зборот "${word}" е ВАЛИДЕН ЛИТЕРАТУРЕН МАКЕДОНСКИ ЗБОР.
-
-  // ЗАДОЛЖИТЕЛНО пребарај на следниве извори (направи повеќе пребарувања):
-  // 1. Пребарај: "${word} site:mk.wiktionary.org" - македонски Викиречник
-  // 2. Пребарај: "${word} site:mk.wikipedia.org" - македонска Википедија
-  // 3. Пребарај: "${word} македонски речник значење"
-  // 4. Пребарај: "${word} дигитален речник македонски"
-
-  // СТРОГИ ПРАВИЛА:
-  // - Зборот МОРА да постои во македонски речник или енциклопедија
-  // - Прифатливи се: именки, глаголи (сите форми), придавки, прилози, заменки, предлози, сврзници
-  // - НЕ прифаќај: жаргон, сленг, туѓи зборови кои не се адаптирани, случајни комбинации на букви
-  // - Граматичките форми на валидни зборови СЕ прифатливи (множина, падежи, глаголски времиња)
-
-  // Одговори САМО со JSON:
-  // {"valid": true/false, "explanation": "објаснување на македонски зошто е/не е валиден", "definition": "кратка дефиниција ако зборот е валиден", "source": "изворот каде е пронајден"}` }],
-  //       })
-  //     });
-  //     const data = await response.json();
-  //     const text = data.content?.map(item => item.type === "text" ? item.text : "").filter(Boolean).join("\n") || "";
-  //     const clean = text.replace(/```json|```/g, "").trim();
-  //     try {
-  //       const jsonMatch = clean.match(/\{[\s\S]*\}/);
-  //       if (jsonMatch) return JSON.parse(jsonMatch[0]);
-  //     } catch {}
-  //     if (text.includes('"valid": true') || text.includes('"valid":true')) return { valid: true, explanation: "Потврден.", definition: "", source: "" };
-  //     return { valid: false, explanation: "Не е пронајден во македонски речник.", definition: "", source: "" };
-  //   } catch { return { valid: null, explanation: "Грешка при проверка.", definition: "", source: "" }; }
-}
-
-// ═══════════════════════════════════════════
-// WORD INFO — Детални информации за збор
-// ═══════════════════════════════════════════
-async function getWordInfo(word) {
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1500,
-        tools: [{ type: "web_search_20250305", name: "web_search" }],
-        messages: [
-          {
-            role: "user",
-            content: `Дај детални информации за македонскиот збор "${word}". 
-
-Пребарај на mk.wiktionary.org, mk.wikipedia.org и македонски речници.
-
-Одговори САМО со JSON:
-{
-  "word": "${word}",
-  "definition": "дефиниција на македонски",
-  "partOfSpeech": "именка/глагол/придавка/итн",
-  "etymology": "потекло на зборот ако е достапно",
-  "examples": ["пример реченица 1", "пример реченица 2"],
-  "synonyms": ["синоним1", "синоним2"],
-  "relatedWords": ["сроден збор1", "сроден збор2"],
-  "funFact": "интересен факт за зборот ако има"
-}`,
-          },
-        ],
-      }),
-    });
-    const data = await response.json();
-    const text =
-      data.content
-        ?.map((item) => (item.type === "text" ? item.text : ""))
-        .filter(Boolean)
-        .join("\n") || "";
-    const jsonMatch = text.replace(/```json|```/g, "").match(/\{[\s\S]*\}/);
-    if (jsonMatch) return JSON.parse(jsonMatch[0]);
-    return {
-      word,
-      definition: "Не се пронајдени информации.",
-      partOfSpeech: "",
-      etymology: "",
-      examples: [],
-      synonyms: [],
-      relatedWords: [],
-      funFact: "",
-    };
-  } catch {
-    return {
-      word,
-      definition: "Грешка при пребарување.",
-      partOfSpeech: "",
-      etymology: "",
-      examples: [],
-      synonyms: [],
-      relatedWords: [],
-      funFact: "",
-    };
-  }
-}
+import { SFX, playBonusSound } from "./services/soundService.js";
+import { getWordInfo, validateWordWithAI } from "./services/wordService.js";
 
 // ═══════════════════════════════════════════
 // MAIN COMPONENT
@@ -1700,160 +1409,11 @@ export default function MacedonianScrabble({
   // ═══════════════════════════════════════════
   if (screen === "leaderboard")
     return (
-      <div
-        style={{
-          ...S.page,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 20,
-        }}
-      >
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap');`}</style>
-        <div
-          style={{
-            ...S.card,
-            padding: "36px 32px",
-            maxWidth: 580,
-            width: "100%",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 28,
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: S.accent,
-                  letterSpacing: 4,
-                  fontWeight: 600,
-                  marginBottom: 4,
-                }}
-              >
-                РАНГИРАЊЕ
-              </div>
-              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>
-                Табла на Најдобри
-              </h2>
-            </div>
-            <button
-              onClick={() => setScreen("home")}
-              style={{ ...S.btnO, padding: "6px 16px", fontSize: 12 }}
-            >
-              ← Назад
-            </button>
-          </div>
-          {!leaderboard.length ? (
-            <div
-              style={{
-                textAlign: "center",
-                padding: 48,
-                color: S.muted,
-                fontSize: 13,
-              }}
-            >
-              Сè уште нема резултати!
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "36px 1fr 60px 60px 50px 50px",
-                  gap: 8,
-                  padding: "6px 12px",
-                  color: S.muted,
-                  fontSize: 10,
-                  fontWeight: 600,
-                  letterSpacing: 1,
-                  textTransform: "uppercase",
-                }}
-              >
-                <span>#</span>
-                <span>Играч</span>
-                <span style={{ textAlign: "right" }}>Најд.</span>
-                <span style={{ textAlign: "right" }}>Прос.</span>
-                <span style={{ textAlign: "right" }}>Игри</span>
-                <span style={{ textAlign: "right" }}>Поб.</span>
-              </div>
-              {leaderboard.map((e, i) => (
-                <div
-                  key={e.name}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "36px 1fr 60px 60px 50px 50px",
-                    gap: 8,
-                    padding: "12px",
-                    background:
-                      i === 0
-                        ? "rgba(99,102,241,0.1)"
-                        : "rgba(255,255,255,0.02)",
-                    borderRadius: 10,
-                    border:
-                      i === 0
-                        ? "1px solid rgba(99,102,241,0.25)"
-                        : "1px solid rgba(255,255,255,0.04)",
-                    alignItems: "center",
-                  }}
-                >
-                  <span style={{ fontSize: 16 }}>
-                    {i === 0 ? (
-                      "🥇"
-                    ) : i === 1 ? (
-                      "🥈"
-                    ) : i === 2 ? (
-                      "🥉"
-                    ) : (
-                      <span style={{ color: S.muted, fontSize: 12 }}>
-                        {i + 1}
-                      </span>
-                    )}
-                  </span>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>
-                      {e.name}
-                    </div>
-                    <div style={{ fontSize: 10, color: S.muted, marginTop: 1 }}>
-                      возраст: {e.age}
-                    </div>
-                  </div>
-                  <span
-                    style={{
-                      textAlign: "right",
-                      color: "#a5b4fc",
-                      fontWeight: 700,
-                      fontFamily: "'Space Mono', monospace",
-                    }}
-                  >
-                    {e.bestScore}
-                  </span>
-                  <span
-                    style={{ textAlign: "right", color: S.muted, fontSize: 12 }}
-                  >
-                    {e.avgScore}
-                  </span>
-                  <span
-                    style={{ textAlign: "right", color: S.muted, fontSize: 12 }}
-                  >
-                    {e.totalGames}
-                  </span>
-                  <span
-                    style={{ textAlign: "right", color: S.muted, fontSize: 12 }}
-                  >
-                    {e.wins}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      <LeaderboardScreen
+        leaderboard={leaderboard}
+        styles={S}
+        onBack={() => setScreen("home")}
+      />
     );
 
   // ═══════════════════════════════════════════
@@ -1894,54 +1454,7 @@ export default function MacedonianScrabble({
   // WAITING FOR CHALLENGE DECISION (multiplayer)
   // ═══════════════════════════════════════════
   if (screen === "waitingChallenge")
-    return (
-      <div
-        style={{
-          ...S.page,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 20,
-        }}
-      >
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap'); @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
-        <div
-          style={{
-            ...S.card,
-            padding: "44px 36px",
-            maxWidth: 400,
-            textAlign: "center",
-          }}
-        >
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              border: "3px solid rgba(99,102,241,0.2)",
-              borderTopColor: "#6366f1",
-              borderRadius: "50%",
-              margin: "0 auto 20px",
-              animation: "spin 1s linear infinite",
-            }}
-          />
-          <div
-            style={{
-              fontSize: 10,
-              color: S.accent,
-              letterSpacing: 4,
-              fontWeight: 600,
-              marginBottom: 8,
-            }}
-          >
-            ЧЕКА ОДЛУКА
-          </div>
-          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-            Противникот одлучува
-          </div>
-          <div style={{ color: S.muted, fontSize: 13 }}>{message}</div>
-        </div>
-      </div>
-    );
+    return <WaitingChallengeModal theme={S} message={message} />;
 
   // ═══════════════════════════════════════════
   // MAIN GAME
@@ -1966,373 +1479,60 @@ export default function MacedonianScrabble({
 
       {/* WORD INFO MODAL */}
       {wordInfoModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 1100,
-            background: "rgba(0,0,0,0.8)",
-            backdropFilter: "blur(8px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-            animation: "fadeIn 0.2s ease",
-          }}
-          onClick={() => setWordInfoModal(null)}
-        >
-          <div
-            style={{
-              ...S.card,
-              padding: 28,
-              maxWidth: 440,
-              width: "100%",
-              maxHeight: "80vh",
-              overflow: "auto",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 20,
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    fontSize: 9,
-                    color: S.accent,
-                    letterSpacing: 3,
-                    fontWeight: 600,
-                    marginBottom: 4,
-                  }}
-                >
-                  РЕЧНИК
-                </div>
-                <h3
-                  style={{
-                    margin: 0,
-                    fontSize: 22,
-                    fontFamily: "'Space Mono', monospace",
-                    color: "#f1f5f9",
-                  }}
-                >
-                  {wordInfoModal.word}
-                </h3>
-              </div>
-              <button
-                onClick={() => setWordInfoModal(null)}
-                style={{
-                  background: "rgba(255,255,255,0.06)",
-                  border: "none",
-                  color: S.muted,
-                  fontSize: 18,
-                  cursor: "pointer",
-                  borderRadius: 8,
-                  width: 32,
-                  height: 32,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                ✕
-              </button>
-            </div>
-            {wordInfoModal.partOfSpeech && (
-              <div
-                style={{
-                  display: "inline-block",
-                  padding: "3px 10px",
-                  background: "rgba(99,102,241,0.15)",
-                  borderRadius: 6,
-                  fontSize: 10,
-                  color: "#a5b4fc",
-                  fontWeight: 600,
-                  marginBottom: 14,
-                  letterSpacing: 1,
-                }}
-              >
-                {wordInfoModal.partOfSpeech.toUpperCase()}
-              </div>
-            )}
-            {wordInfoModal.definition && (
-              <div style={{ marginBottom: 14 }}>
-                <div
-                  style={{
-                    fontSize: 9,
-                    color: S.muted,
-                    marginBottom: 4,
-                    fontWeight: 600,
-                    letterSpacing: 2,
-                  }}
-                >
-                  ДЕФИНИЦИЈА
-                </div>
-                <div
-                  style={{ fontSize: 14, lineHeight: 1.6, color: "#e2e8f0" }}
-                >
-                  {wordInfoModal.definition}
-                </div>
-              </div>
-            )}
-            {wordInfoModal.etymology && (
-              <div style={{ marginBottom: 14 }}>
-                <div
-                  style={{
-                    fontSize: 9,
-                    color: S.muted,
-                    marginBottom: 4,
-                    fontWeight: 600,
-                    letterSpacing: 2,
-                  }}
-                >
-                  ЕТИМОЛОГИЈА
-                </div>
-                <div style={{ fontSize: 12, lineHeight: 1.5, color: S.muted }}>
-                  {wordInfoModal.etymology}
-                </div>
-              </div>
-            )}
-            {wordInfoModal.examples?.length > 0 && (
-              <div style={{ marginBottom: 14 }}>
-                <div
-                  style={{
-                    fontSize: 9,
-                    color: S.muted,
-                    marginBottom: 4,
-                    fontWeight: 600,
-                    letterSpacing: 2,
-                  }}
-                >
-                  ПРИМЕРИ
-                </div>
-                {wordInfoModal.examples.map((ex, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      fontSize: 12,
-                      color: S.muted,
-                      fontStyle: "italic",
-                      marginBottom: 4,
-                      paddingLeft: 8,
-                      borderLeft: "2px solid rgba(99,102,241,0.3)",
-                    }}
-                  >
-                    „{ex}"
-                  </div>
-                ))}
-              </div>
-            )}
-            {wordInfoModal.synonyms?.length > 0 && (
-              <div style={{ marginBottom: 14 }}>
-                <div
-                  style={{
-                    fontSize: 9,
-                    color: S.muted,
-                    marginBottom: 4,
-                    fontWeight: 600,
-                    letterSpacing: 2,
-                  }}
-                >
-                  СИНОНИМИ
-                </div>
-                <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                  {wordInfoModal.synonyms.map((s, i) => (
-                    <span
-                      key={i}
-                      style={{
-                        padding: "2px 10px",
-                        background: "rgba(16,185,129,0.12)",
-                        borderRadius: 6,
-                        fontSize: 11,
-                        color: "#34d399",
-                      }}
-                    >
-                      {s}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {wordInfoModal.relatedWords?.length > 0 && (
-              <div style={{ marginBottom: 14 }}>
-                <div
-                  style={{
-                    fontSize: 9,
-                    color: S.muted,
-                    marginBottom: 4,
-                    fontWeight: 600,
-                    letterSpacing: 2,
-                  }}
-                >
-                  СРОДНИ
-                </div>
-                <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                  {wordInfoModal.relatedWords.map((s, i) => (
-                    <span
-                      key={i}
-                      style={{
-                        padding: "2px 10px",
-                        background: "rgba(99,102,241,0.12)",
-                        borderRadius: 6,
-                        fontSize: 11,
-                        color: "#a5b4fc",
-                      }}
-                    >
-                      {s}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {wordInfoModal.funFact && (
-              <div
-                style={{
-                  padding: 12,
-                  background: "rgba(245,158,11,0.08)",
-                  borderRadius: 10,
-                  border: "1px solid rgba(245,158,11,0.15)",
-                  marginTop: 8,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 9,
-                    color: "#f59e0b",
-                    marginBottom: 3,
-                    letterSpacing: 2,
-                  }}
-                >
-                  💡 ИНТЕРЕСНО
-                </div>
-                <div style={{ fontSize: 12, color: "#fcd34d" }}>
-                  {wordInfoModal.funFact}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        <WordInfoModal
+          theme={S}
+          wordInfo={wordInfoModal}
+          onClose={() => setWordInfoModal(null)}
+        />
       )}
 
       {/* JOKER MODAL */}
       {jokerModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 1000,
-            background: "rgba(0,0,0,0.8)",
-            backdropFilter: "blur(8px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <div style={{ ...S.card, padding: 28, maxWidth: 400 }}>
-            <div
-              style={{
-                fontSize: 9,
-                color: S.accent,
-                letterSpacing: 3,
-                fontWeight: 600,
-                marginBottom: 6,
-                textAlign: "center",
-              }}
-            >
-              ЏОКЕР
-            </div>
-            <h3
-              style={{
-                color: "#f1f5f9",
-                margin: "0 0 18px",
-                textAlign: "center",
-                fontSize: 16,
-                fontWeight: 700,
-              }}
-            >
-              Избери буква
-            </h3>
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 4,
-                justifyContent: "center",
-              }}
-            >
-              {MK_LETTERS.split("").map((l) => (
-                <button
-                  key={l}
-                  onClick={() => assignJoker(l)}
-                  style={{
-                    width: 36,
-                    height: 36,
-                    background: "rgba(255,255,255,0.06)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: 8,
-                    fontSize: 14,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    color: "#f1f5f9",
-                    transition: "all 0.1s",
-                  }}
-                  onMouseOver={(e) =>
-                    (e.target.style.background = "rgba(99,102,241,0.3)")
-                  }
-                  onMouseOut={(e) =>
-                    (e.target.style.background = "rgba(255,255,255,0.06)")
-                  }
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+        <JokerModal
+          theme={S}
+          letters={MK_LETTERS.split("")}
+          onSelect={assignJoker}
+        />
       )}
 
-      {screen === "challenge" && (() => {
-        const opponents = players.filter(
-          (p, i) => i !== currentPlayer && p.type === "human",
-        );
-        const opponentNames = opponents.map((o) => o.name).join(", ");
+      {screen === "challenge" &&
+        (() => {
+          const opponents = players.filter(
+            (p, i) => i !== currentPlayer && p.type === "human",
+          );
+          const opponentNames = opponents.map((o) => o.name).join(", ");
 
-        const closeChallengeModal = () => {
-          showingChallengeResultRef.current = false;
-          setChallengeResult(null);
-          setScreen("playing");
-        };
+          const closeChallengeModal = () => {
+            showingChallengeResultRef.current = false;
+            setChallengeResult(null);
+            setScreen("playing");
+          };
 
-        const retryChallenge = () => {
-          setChallengeResult(null);
-          setScreen("playing");
-          setMessage(`${players[currentPlayer].name} — пробај повторно!`);
-        };
+          const retryChallenge = () => {
+            setChallengeResult(null);
+            setScreen("playing");
+            setMessage(`${players[currentPlayer].name} — пробај повторно!`);
+          };
 
-        return (
-          <ChallengeModal
-            theme={S}
-            players={players}
-            currentPlayer={currentPlayer}
-            formedWords={formedWords}
-            turnScore={turnScore}
-            challengeResult={challengeResult}
-            isValidating={isValidating}
-            isLoadingInfo={isLoadingInfo}
-            opponentNames={opponentNames}
-            requestWordInfo={requestWordInfo}
-            challengeWord={challengeWord}
-            finalizeTurn={finalizeTurn}
-            onClose={closeChallengeModal}
-            onRetry={retryChallenge}
-          />
-        );
-      })()}
+          return (
+            <ChallengeModal
+              theme={S}
+              players={players}
+              currentPlayer={currentPlayer}
+              formedWords={formedWords}
+              turnScore={turnScore}
+              challengeResult={challengeResult}
+              isValidating={isValidating}
+              isLoadingInfo={isLoadingInfo}
+              opponentNames={opponentNames}
+              requestWordInfo={requestWordInfo}
+              challengeWord={challengeWord}
+              finalizeTurn={finalizeTurn}
+              onClose={closeChallengeModal}
+              onRetry={retryChallenge}
+            />
+          );
+        })()}
 
       {/* START HERE ONE SIDE */}
       <div className="game-layout">
@@ -2373,112 +1573,30 @@ export default function MacedonianScrabble({
             cp?.type === "human" &&
             !isAIThinking &&
             isMyTurn && (
-              <div
+              <PlayerRack
+                rack={
+                  (players[myPlayerIndex] ?? players[currentPlayer])?.rack ?? []
+                }
+                selectedTile={selectedTile}
+                draggedTile={draggedTile}
+                isMyTurn={isMyTurn}
+                isAIThinking={isAIThinking}
+                currentPlayer={cp}
+                myPlayerIndex={myPlayerIndex}
+                players={players}
+                placedTiles={placedTiles}
+                turnScore={turnScore}
+                theme={S}
+                onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
-                onDrop={handleDropOnRack}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  padding: "4px 0",
-                  background: "transparent",
-                  border: "none",
-                  margin: "0 auto 6px",
-                  width: "100%",
-                  maxWidth: 900,
-                  boxSizing: "border-box",
-                }}
-              >
-                {(players[myPlayerIndex] ?? players[currentPlayer])?.rack?.map(
-                  (tile, i) => (
-                    <div
-                      key={tile.id}
-                      className="tile-rack"
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, tile, i)}
-                      onDragEnd={() => setDraggedTile(null)}
-                      onClick={() => selectTile(tile, i)}
-                      style={{
-                        ...tileStyle(
-                          tile,
-                          selectedTile?.id === tile.id,
-                          draggedTile?.id === tile.id,
-                        ),
-                        transition: "all 0.15s ease",
-                      }}
-                    >
-                      {getDisplayLetter(tile)}
-                      <span
-                        style={{
-                          position: "absolute",
-                          bottom: 1,
-                          right: 2,
-                          fontSize: 7,
-                          color: "var(--tile-ink)",
-                          fontFamily: "'Space Mono', monospace",
-                        }}
-                      >
-                        {tile.letter === "★" ? "" : tile.points}
-                      </span>
-                    </div>
-                  ),
-                )}
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 6,
-                    justifyContent: "center",
-                    flexWrap: "wrap",
-                    alignItems: "center",
-                  }}
-                >
-                  {placedTiles.length > 0 && (
-                    <button
-                      className="action-btn"
-                      onClick={confirmPlacement}
-                      style={{
-                        ...S.btn("linear-gradient(135deg, #10b981, #059669)"),
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      ✓ Потврди{" "}
-                      <span style={{ fontFamily: "'Space Mono', monospace" }}>
-                        +{turnScore}
-                      </span>
-                    </button>
-                  )}
-                  <button
-                    className="action-btn"
-                    onClick={passTurn}
-                    style={{ ...S.btnO, transition: "all 0.15s" }}
-                  >
-                    Пас
-                  </button>
-                  {placedTiles.length === 0 && (
-                    <button
-                      className="action-btn"
-                      onClick={exchangeTiles}
-                      disabled={cp.score < 5}
-                      style={{
-                        ...S.btnO,
-                        opacity: cp.score < 5 ? 0.3 : 1,
-                        cursor: cp.score < 5 ? "not-allowed" : "pointer",
-                        transition: "all 0.15s",
-                        borderColor:
-                          cp.score < 5 ? "rgba(255,255,255,0.08)" : undefined,
-                      }}
-                      title={
-                        cp.score < 5 ? "Потребни се 5 поени" : "Замени (-5 п.)"
-                      }
-                    >
-                      🔄 Замени{" "}
-                      <span style={{ fontSize: 10, opacity: 0.7 }}>−5п</span>
-                    </button>
-                  )}
-                </div>
-              </div>
+                onDropOnRack={handleDropOnRack}
+                onSelectTile={selectTile}
+                onConfirmPlacement={confirmPlacement}
+                onPassTurn={passTurn}
+                onExchangeTiles={exchangeTiles}
+                getDisplayLetter={getDisplayLetter}
+                tileStyle={tileStyle}
+              />
             )}
 
           {/* FORMED WORDS PREVIEW */}
@@ -2566,132 +1684,15 @@ export default function MacedonianScrabble({
           )}
         </div>
         {/* SIDE ONE ENDS HERE */}
-        <div className="right-column">
-          <div className="side-panel">
-            <div className="panel-heading">
-              <h2>Како се игра</h2>
-              <span>Упатство</span>
-            </div>
-            <div className="instructions-body">
-              <div className="instruction-step">
-                <span className="instruction-number">1</span>
-                <p>
-                  Постави ги буквите со влечење или кликни на посакуваното поле.
-                </p>
-              </div>
-              <div className="instruction-step">
-                <span className="instruction-number">2</span>
-                <p>Потврди го потегот кога ќе го составиш зборот.</p>
-              </div>
-              <div className="instruction-step">
-                <span className="instruction-number">3</span>
-                <p>
-                  Противникот може да го предизвика зборот и да побара проверка
-                  во речникот.
-                </p>
-              </div>
-            </div>
-          </div>
-          {/* MESSAGE BAR */}
-          {/* This section displays messages to the player, such as whose turn it is or if the AI is thinking. */}
-          {(displayMessage || isAIThinking) && (
-            <div className="status-message">
-              {isAIThinking && (
-                <span
-                  style={{
-                    display: "inline-block",
-                    animation: "aispin 1s linear infinite",
-                    marginRight: 6,
-                  }}
-                >
-                  🤖
-                </span>
-              )}
-              {displayMessage}
-            </div>
-          )}
-          {/* SCOREBOARD */}
-          {(() => {
-            const isChallenge = screen === "challenge";
-            const decidingPlayers = isChallenge
-              ? players
-                  .map((p, i) => i !== currentPlayer && p.type === "human")
-                  .map((v, i) => (v ? i : -1))
-                  .filter((i) => i >= 0)
-              : [currentPlayer];
-            return (
-              <div className="side-panel">
-                <div className="panel-heading">
-                  <h2>Играчи</h2>
-                  <span>Кеса: {tileBag.length}</span>
-                </div>
-                <div className="players">
-                  {players.map((p, i) => {
-                    const isActive = decidingPlayers.includes(i);
-                    const isCurrentTurn = i === currentPlayer && !isChallenge;
-                    const highlighted = isActive || isCurrentTurn;
-                    return (
-                      <div
-                        key={i}
-                        className={`player${highlighted ? " current" : ""}`}
-                      >
-                        <div
-                          className={`avatar${i !== currentPlayer ? " other" : ""}`}
-                        >
-                          {p.type === "ai" ? "🤖" : "👤"}
-                        </div>
-                        <div className="player-info">
-                          <div className="player-name">{p.name}</div>
-                          <div className="player-caption">
-                            В.{p.age}
-                            {isCurrentTurn && (
-                              <span
-                                className="status-dot"
-                                style={{
-                                  background: "var(--primary)",
-                                  borderRadius: "50%",
-                                }}
-                              />
-                            )}
-                            {p.skipPenalty && <span>пропушта</span>}
-                            {isChallenge && isActive && <span>⚖️</span>}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="player-score">{p.score}</div>
-                          <span className="score-unit">поени</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })()}
-          {/* GAME LOG */}
-          {gameLog.length > 0 && (
-            <div className="side-panel">
-              <div className="panel-heading">
-                <h2>Историја</h2>
-                <span>{gameLog.length} потези</span>
-              </div>
-              <div className="history-list">
-                {gameLog.slice(-6).map((entry, i) => (
-                  <div className="history-entry" key={`${i}-${entry}`}>
-                    <span className="turn-number">
-                      {gameLog.length - Math.min(gameLog.length, 6) + i + 1}
-                    </span>
-                    <div className="history-word">{entry}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="history-footer">
-                <span>Последни потези</span>
-                <span>{Math.min(gameLog.length, 6)} прикажани</span>
-              </div>
-            </div>
-          )}
-        </div>
+        <GameSidebar
+          players={players}
+          currentPlayer={currentPlayer}
+          screen={screen}
+          tileBagCount={tileBag.length}
+          displayMessage={displayMessage}
+          isAIThinking={isAIThinking}
+          gameLog={gameLog}
+        />
       </div>
     </div>
   );
