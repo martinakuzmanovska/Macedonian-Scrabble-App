@@ -10,8 +10,16 @@
   justify-content: center;
   padding: 24px;
   background:
-    radial-gradient(ellipse at 14% 18%, oklch(0.91 0.045 145 / 0.45), transparent 38%),
-    radial-gradient(ellipse at 88% 82%, oklch(0.92 0.055 90 / 0.5), transparent 34%),
+    radial-gradient(
+      ellipse at 14% 18%,
+      oklch(0.91 0.045 145 / 0.45),
+      transparent 38%
+    ),
+    radial-gradient(
+      ellipse at 88% 82%,
+      oklch(0.92 0.055 90 / 0.5),
+      transparent 34%
+    ),
     var(--app-background, #f5f7f3);
   color: var(--lobby-ink);
   font-family: "DM Sans", "Segoe UI", sans-serif;
@@ -23,7 +31,11 @@
   padding: 36px 32px;
   border: 1px solid var(--lobby-border);
   border-radius: 18px;
-  background: color-mix(in oklch, var(--card, #fff) 96%, var(--secondary, #f0f3ed));
+  background: color-mix(
+    in oklch,
+    var(--card, #fff) 96%,
+    var(--secondary, #f0f3ed)
+  );
   box-shadow: 0 18px 48px oklch(0.3 0.03 150 / 0.09);
 }
 
@@ -61,7 +73,10 @@
   font: inherit;
   font-size: 12px;
   font-weight: 700;
-  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .lobby-tab--active {
@@ -95,7 +110,9 @@
   font-size: 24px;
   letter-spacing: 8px;
   text-align: center;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
 
 .lobby-invite-code:focus {
@@ -127,7 +144,10 @@
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  transition: background 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease,
+    opacity 0.15s ease;
 }
 
 .lobby-join-button:not(:disabled):hover {

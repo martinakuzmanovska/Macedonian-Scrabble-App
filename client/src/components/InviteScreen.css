@@ -1,0 +1,285 @@
+.invite-screen {
+  --invite-primary: var(--primary, #49634e);
+  --invite-ink: var(--foreground, #292b29);
+  --invite-muted: var(--muted-foreground, #4d534e);
+  --invite-border: var(--border, #d9dfd8);
+  --invite-soft: var(--secondary, #f0f3ed);
+  position: relative;
+  display: grid;
+  min-height: calc(100vh - 76px);
+  place-items: center;
+  overflow: hidden;
+  padding: clamp(20px, 4vw, 40px);
+  background:
+    radial-gradient(ellipse at 14% 15%, oklch(0.91 0.045 145 / 0.5), transparent 36%),
+    radial-gradient(ellipse at 88% 84%, oklch(0.93 0.055 90 / 0.48), transparent 34%),
+    var(--app-background, #f5f7f3);
+  color: var(--invite-ink);
+}
+
+.invite-screen::before {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(oklch(0.47 0.062 151 / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.47 0.062 151 / 0.035) 1px, transparent 1px);
+  background-size: 40px 40px;
+  content: "";
+  pointer-events: none;
+}
+
+.invite-card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 500px);
+  padding: clamp(26px, 5vw, 42px);
+  border: 1px solid var(--invite-border);
+  border-radius: 20px;
+  background: color-mix(in oklch, var(--card, #fff) 95%, var(--secondary, #f0f3ed));
+  box-shadow: 0 20px 54px oklch(0.3 0.03 150 / 0.1);
+  text-align: center;
+  animation: invite-appear 0.3s ease both;
+}
+
+.invite-kicker {
+  margin: 0 0 8px;
+  color: var(--invite-primary);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.invite-title {
+  margin: 0;
+  color: var(--invite-ink);
+  font-size: clamp(22px, 4vw, 28px);
+  font-weight: 800;
+}
+
+.invite-description {
+  margin: 8px 0 24px;
+  color: var(--invite-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.invite-code {
+  width: 100%;
+  padding: 16px 18px;
+  border: 1px solid var(--tile-edge);
+  border-radius: 14px;
+  background: var(--tile);
+  box-shadow: var(--tile-shadow);
+  color: var(--tile-ink);
+  cursor: pointer;
+  font-family: "Space Mono", monospace;
+  font-size: clamp(28px, 7vw, 40px);
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.invite-code:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 var(--tile-edge), 0 12px 20px oklch(0.3 0.03 150 / 0.12);
+}
+
+.invite-code:focus-visible,
+.invite-share-button:focus-visible,
+.invite-start-button:focus-visible,
+.invite-cancel-button:focus-visible {
+  outline: 3px solid oklch(0.47 0.062 151 / 0.3);
+  outline-offset: 3px;
+}
+
+.invite-copy-hint {
+  min-height: 18px;
+  margin: 10px 0 16px;
+  color: var(--invite-muted);
+  font-size: 11px;
+}
+
+.invite-share-button {
+  width: 100%;
+  margin-bottom: 24px;
+  padding: 11px 16px;
+  border: 1px solid var(--invite-border);
+  border-radius: 10px;
+  background: var(--invite-soft);
+  color: var(--invite-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.invite-share-button:hover {
+  border-color: var(--invite-primary);
+  background: color-mix(in oklch, var(--invite-soft) 70%, var(--tile));
+}
+
+.invite-players {
+  margin-bottom: 22px;
+  text-align: left;
+}
+
+.invite-players-heading {
+  margin: 0 0 10px;
+  color: var(--invite-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.invite-player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 7px;
+  padding: 10px 12px;
+  border: 1px dashed var(--invite-border);
+  border-radius: 10px;
+  background: color-mix(in oklch, var(--card) 76%, var(--secondary));
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.invite-player-row--joined {
+  border-style: solid;
+  background: color-mix(in oklch, var(--secondary) 68%, var(--card));
+}
+
+.invite-player-avatar {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--muted);
+  font-size: 14px;
+}
+
+.invite-player-row--joined .invite-player-avatar {
+  background: var(--secondary);
+}
+
+.invite-player-name {
+  min-width: 0;
+  flex: 1;
+  color: var(--invite-muted);
+  font-size: 12px;
+}
+
+.invite-player-row--joined .invite-player-name {
+  color: var(--invite-ink);
+  font-weight: 650;
+}
+
+.invite-player-label {
+  color: var(--invite-muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.invite-player-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--invite-primary);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--invite-primary) 14%, transparent);
+}
+
+.invite-start-button {
+  width: 100%;
+  padding: 14px 20px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--invite-primary);
+  box-shadow: 0 4px 14px oklch(0.47 0.062 151 / 0.2);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.invite-start-button:hover {
+  transform: translateY(-1px);
+  background: #3d5542;
+}
+
+.invite-waiting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 14px;
+  padding: 10px 14px;
+  border: 1px solid oklch(0.79 0.08 80 / 0.45);
+  border-radius: 10px;
+  background: oklch(0.94 0.04 85 / 0.52);
+  color: oklch(0.47 0.08 68);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.invite-spinner {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  border: 2px solid oklch(0.79 0.08 80 / 0.45);
+  border-top-color: oklch(0.55 0.1 68);
+  border-radius: 50%;
+  animation: invite-spin 0.9s linear infinite;
+}
+
+.invite-cancel-button {
+  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--invite-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.invite-cancel-button:hover {
+  color: var(--invite-primary);
+}
+
+@keyframes invite-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes invite-appear {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .invite-card {
+    animation: none;
+  }
+
+  .invite-spinner {
+    animation-duration: 2.5s;
+  }
+}

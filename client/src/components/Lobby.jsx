@@ -62,12 +62,8 @@ export default function Lobby({
     transition: "all 0.15s",
   });
   return (
-    <div
-      className="lobby-screen"
-    >
-      <div
-        className="lobby-card"
-      >
+    <div className="lobby-screen">
+      <div className="lobby-card">
         {showLeaderboard && (
           <div
             onClick={() => setShowLeaderboard(false)}
@@ -137,7 +133,11 @@ export default function Lobby({
 
               {!leaderboard.length ? (
                 <div
-                    style={{ textAlign: "center", padding: 32, color: "var(--muted-foreground)" }}
+                  style={{
+                    textAlign: "center",
+                    padding: 32,
+                    color: "var(--muted-foreground)",
+                  }}
                 >
                   Сè уште нема резултати!
                 </div>
@@ -178,7 +178,9 @@ export default function Lobby({
                         alignItems: "center",
                       }}
                     >
-                      <span style={{ fontWeight: 700, color: "var(--primary)" }}>
+                      <span
+                        style={{ fontWeight: 700, color: "var(--primary)" }}
+                      >
                         {index + 1}
                       </span>
                       <span style={{ fontWeight: 600 }}>{entry.name}</span>
@@ -249,7 +251,13 @@ export default function Lobby({
               />
             )}
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "var(--foreground)",
+                }}
+              >
                 {user.displayName}
               </div>
               <div
@@ -296,9 +304,7 @@ export default function Lobby({
         </div>
 
         {/* Tabs */}
-        <div
-          className="lobby-tabs"
-        >
+        <div className="lobby-tabs">
           {["create", "join"].map((t) => (
             <button
               key={t}
@@ -622,9 +628,7 @@ export default function Lobby({
               maxLength={8}
             />
 
-            {error && (
-              <div className="lobby-error">{error}</div>
-            )}
+            {error && <div className="lobby-error">{error}</div>}
 
             <button
               className="lobby-join-button"

@@ -1,53 +1,72 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./hooks/useAuth.js";
 import { useGame } from "./hooks/useGame.js";
 import LoginScreen from "./components/LoginScreen.jsx";
-import Lobby from "./components/Lobby.jsx";
+import HomePage from "./components/HomePage.jsx";
 import InviteScreen from "./components/InviteScreen.jsx";
 import MacedonianScrabble from "./scrabble.jsx";
 import { loadLeaderboard } from "./services/leaderboardService.js";
 
-function AppNavbar({ user, onLogout, onOpenLeaderboard }) {
+const PENDING_ACTION_KEY = "mk-scrabble-pending-action";
+
+function AppNavbar({ user, onLogin, onLogout, onOpenLeaderboard }) {
   return (
     <nav className="app-navbar" aria-label="Main navigation">
       <div className="app-navbar-brand">СКРАБЛ</div>
 
-      <div className="app-navbar-user">
-        <img
-          src={
-            user.avatar ||
-            "https://ui-avatars.com/api/?name=" +
-              encodeURIComponent(user.displayName || "Player") +
-              "&background=6366f1&color=fff"
-          }
-          alt="Profile"
-          className="app-navbar-avatar"
-        />
-        <div className="app-navbar-user-copy">
-          <div className="app-navbar-name">{user.displayName || "Player"}</div>
-          <div className="app-navbar-email">{user.email || "Player"}</div>
-        </div>
-      </div>
+      {user && (
+        <>
+          <div className="app-navbar-user">
+            <img
+              src={
+                user.avatar ||
+                "https://ui-avatars.com/api/?name=" +
+                  encodeURIComponent(user.displayName || "Player") +
+                  "&background=49634e&color=fff"
+              }
+              alt="Profile"
+              className="app-navbar-avatar"
+            />
+            <div className="app-navbar-user-copy">
+              <div className="app-navbar-name">
+                {user.displayName || "Player"}
+              </div>
+              <div className="app-navbar-email">{user.email || "Player"}</div>
+            </div>
+          </div>
 
-      <div className="app-navbar-stats">
-        <span>Active</span>
-        <span>Rank: Amateur</span>
-        <span>Games: {user.gamesPlayed || 0}</span>
-      </div>
+          <div className="app-navbar-stats">
+            <span>Active</span>
+            <span>Rank: Amateur</span>
+            <span>Games: {user.gamesPlayed || 0}</span>
+          </div>
+        </>
+      )}
 
       <div className="app-navbar-actions">
-        <button
-          className="app-navbar-button app-navbar-leaderboard"
-          onClick={onOpenLeaderboard}
-        >
-          🏆 Leaderboard
-        </button>
-        <button
-          className="app-navbar-button app-navbar-logout"
-          onClick={onLogout}
-        >
-          🚪 Logout
-        </button>
+        {user ? (
+          <>
+            <button
+              className="app-navbar-button app-navbar-leaderboard"
+              onClick={onOpenLeaderboard}
+            >
+              🏆 Leaderboard
+            </button>
+            <button
+              className="app-navbar-button app-navbar-logout"
+              onClick={onLogout}
+            >
+              🚪 Logout
+            </button>
+          </>
+        ) : (
+          <button
+            className="app-navbar-button app-navbar-leaderboard"
+            onClick={onLogin}
+          >
+            Log in
+          </button>
+        )}
       </div>
     </nav>
   );
@@ -195,19 +214,82 @@ export default function App() {
   } = useGame();
   const [leaderboard, setLeaderboard] = useState([]);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [pendingAction, setPendingAction] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem(PENDING_ACTION_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
 
   const joinHandled = useRef(false);
+  const pendingActionHandled = useRef(false);
+
+  const executeAction = useCallback(
+    (action) => {
+      if (action.type === "join") {
+        void joinGame(action.code);
+        return;
+      }
+
+      const players = [
+        {
+          name: user?.displayName || "Играч 1",
+          age: 25,
+          type: "human",
+          userId: user?.id,
+          avatar: user?.avatar,
+        },
+        action.type === "ai"
+          ? { name: "🤖 AI", age: 25, type: "ai" }
+          : { name: "Играч 2", age: 25, type: "human" },
+      ];
+      void createGame(players);
+    },
+    [createGame, joinGame, user],
+  );
+
+  const requestAction = useCallback(
+    (action) => {
+      if (!user) {
+        sessionStorage.setItem(PENDING_ACTION_KEY, JSON.stringify(action));
+        setPendingAction(action);
+        setShowLogin(true);
+        return;
+      }
+
+      executeAction(action);
+    },
+    [executeAction, user],
+  );
 
   useEffect(() => {
-    if (!user || authLoading || joinHandled.current) return;
+    if (authLoading || joinHandled.current) return;
     const params = new URLSearchParams(window.location.search);
     const joinCode = params.get("join");
     if (!joinCode) return;
 
     joinHandled.current = true;
     window.history.replaceState({}, "", window.location.pathname);
-    joinGame(joinCode);
-  }, [user, authLoading]);
+    const timeoutId = window.setTimeout(() => {
+      requestAction({ type: "join", code: joinCode });
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [authLoading, requestAction]);
+
+  useEffect(() => {
+    if (!user || !pendingAction || pendingActionHandled.current) return;
+    pendingActionHandled.current = true;
+    const timeoutId = window.setTimeout(() => {
+      sessionStorage.removeItem(PENDING_ACTION_KEY);
+      setPendingAction(null);
+      setShowLogin(false);
+      executeAction(pendingAction);
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [executeAction, pendingAction, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -215,12 +297,10 @@ export default function App() {
   }, [user]);
 
   if (authLoading) return <LoadingScreen />;
-  if (!user) return <LoginScreen />;
-
   if (gameLoading && !gameState) return <LoadingScreen />;
 
   const content = (() => {
-    if (gameState) {
+    if (user && gameState) {
       const status = gameState.status;
 
       if (status === "waiting") {
@@ -245,15 +325,20 @@ export default function App() {
       );
     }
 
+    if (!user && showLogin) {
+      return (
+        <LoginScreen
+          onBack={() => {
+            sessionStorage.removeItem(PENDING_ACTION_KEY);
+            setPendingAction(null);
+            setShowLogin(false);
+          }}
+        />
+      );
+    }
+
     return (
-      <Lobby
-        user={user}
-        onCreate={createGame}
-        onJoin={joinGame}
-        onLogout={logout}
-        loading={gameLoading}
-        error={error}
-      />
+      <HomePage onAction={requestAction} loading={gameLoading} error={error} />
     );
   })();
 
@@ -261,6 +346,7 @@ export default function App() {
     <>
       <AppNavbar
         user={user}
+        onLogin={() => setShowLogin(true)}
         onLogout={logout}
         onOpenLeaderboard={() => {
           loadLeaderboard().then(setLeaderboard);
