@@ -110,9 +110,7 @@ export default function ScrabbleBoard({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: bonusColor
-                    ? bonusColor.bg
-                    : "var(--board-cell)",
+                  background: bonusColor ? bonusColor.bg : "var(--board-cell)",
                   border: bonusColor
                     ? `1px solid color-mix(in oklch, ${bonusColor.ink} 55%, transparent)`
                     : "1px solid rgba(45, 60, 45, 0.58)",

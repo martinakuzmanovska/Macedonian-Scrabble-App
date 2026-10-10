@@ -8,7 +8,7 @@
   --accent: oklch(0.94 0.025 145);
   --secondary: oklch(0.95 0.03 145);
   --primary: #49634e;
-  --font-heading: 'Manrope', sans-serif;
+  --font-heading: "Manrope", sans-serif;
   --board-cell: oklch(0.922 0.031 139);
   --board-frame: oklch(0.47 0.062 151);
   --tile: oklch(0.967 0.043 88);
@@ -26,7 +26,7 @@
   --avatar-other-ink: oklch(0.49 0.077 44);
   --surface-shadow: 0 3px 16px oklch(0.3 0.03 150 / 0.035);
   --tile-shadow: 0 3px 0 var(--tile-edge), 0 4px 5px oklch(0.3 0 0 / 0.06);
-  font-family: 'DM Sans', sans-serif;
+  font-family: "DM Sans", sans-serif;
   color: #34443d;
   background: var(--app-background);
 
@@ -50,7 +50,7 @@ body,
 }
 
 body {
-  font-family: 'DM Sans', sans-serif;
+  font-family: "DM Sans", sans-serif;
   background: var(--app-background);
   color: #34443d;
 }
@@ -61,7 +61,7 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: 'Manrope', sans-serif;
+  font-family: "Manrope", sans-serif;
 }
 
 button,

@@ -4,6 +4,7 @@ import { useAIMove } from "./hooks/useAIMove.js";
 import SetupScreen from "./components/SetupScreen.jsx";
 import GameOverScreen from "./components/GameOverScreen.jsx";
 import ScrabbleBoard from "./components/ScrabbleBoard.jsx";
+import ChallengeModal from "./components/ChallengeModal.jsx";
 
 import {
   TILE_CONFIG,
@@ -2295,6 +2296,44 @@ export default function MacedonianScrabble({
         </div>
       )}
 
+      {screen === "challenge" && (() => {
+        const opponents = players.filter(
+          (p, i) => i !== currentPlayer && p.type === "human",
+        );
+        const opponentNames = opponents.map((o) => o.name).join(", ");
+
+        const closeChallengeModal = () => {
+          showingChallengeResultRef.current = false;
+          setChallengeResult(null);
+          setScreen("playing");
+        };
+
+        const retryChallenge = () => {
+          setChallengeResult(null);
+          setScreen("playing");
+          setMessage(`${players[currentPlayer].name} — пробај повторно!`);
+        };
+
+        return (
+          <ChallengeModal
+            theme={S}
+            players={players}
+            currentPlayer={currentPlayer}
+            formedWords={formedWords}
+            turnScore={turnScore}
+            challengeResult={challengeResult}
+            isValidating={isValidating}
+            isLoadingInfo={isLoadingInfo}
+            opponentNames={opponentNames}
+            requestWordInfo={requestWordInfo}
+            challengeWord={challengeWord}
+            finalizeTurn={finalizeTurn}
+            onClose={closeChallengeModal}
+            onRetry={retryChallenge}
+          />
+        );
+      })()}
+
       {/* START HERE ONE SIDE */}
       <div className="game-layout">
         <div className="left-column">
@@ -2352,40 +2391,40 @@ export default function MacedonianScrabble({
                   boxSizing: "border-box",
                 }}
               >
-                {(
-                  players[myPlayerIndex] ?? players[currentPlayer]
-                )?.rack?.map((tile, i) => (
-                  <div
-                    key={tile.id}
-                    className="tile-rack"
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, tile, i)}
-                    onDragEnd={() => setDraggedTile(null)}
-                    onClick={() => selectTile(tile, i)}
-                    style={{
-                      ...tileStyle(
-                        tile,
-                        selectedTile?.id === tile.id,
-                        draggedTile?.id === tile.id,
-                      ),
-                      transition: "all 0.15s ease",
-                    }}
-                  >
-                    {getDisplayLetter(tile)}
-                    <span
+                {(players[myPlayerIndex] ?? players[currentPlayer])?.rack?.map(
+                  (tile, i) => (
+                    <div
+                      key={tile.id}
+                      className="tile-rack"
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, tile, i)}
+                      onDragEnd={() => setDraggedTile(null)}
+                      onClick={() => selectTile(tile, i)}
                       style={{
-                        position: "absolute",
-                        bottom: 1,
-                        right: 2,
-                        fontSize: 7,
-                        color: "var(--tile-ink)",
-                        fontFamily: "'Space Mono', monospace",
+                        ...tileStyle(
+                          tile,
+                          selectedTile?.id === tile.id,
+                          draggedTile?.id === tile.id,
+                        ),
+                        transition: "all 0.15s ease",
                       }}
                     >
-                      {tile.letter === "★" ? "" : tile.points}
-                    </span>
-                  </div>
-                ))}
+                      {getDisplayLetter(tile)}
+                      <span
+                        style={{
+                          position: "absolute",
+                          bottom: 1,
+                          right: 2,
+                          fontSize: 7,
+                          color: "var(--tile-ink)",
+                          fontFamily: "'Space Mono', monospace",
+                        }}
+                      >
+                        {tile.letter === "★" ? "" : tile.points}
+                      </span>
+                    </div>
+                  ),
+                )}
                 <div
                   style={{
                     display: "flex",
@@ -2537,8 +2576,7 @@ export default function MacedonianScrabble({
               <div className="instruction-step">
                 <span className="instruction-number">1</span>
                 <p>
-                  Постави ги буквите со влечење или кликни на посакуваното
-                  поле.
+                  Постави ги буквите со влечење или кликни на посакуваното поле.
                 </p>
               </div>
               <div className="instruction-step">
@@ -2597,7 +2635,9 @@ export default function MacedonianScrabble({
                         key={i}
                         className={`player${highlighted ? " current" : ""}`}
                       >
-                        <div className={`avatar${i !== currentPlayer ? " other" : ""}`}>
+                        <div
+                          className={`avatar${i !== currentPlayer ? " other" : ""}`}
+                        >
                           {p.type === "ai" ? "🤖" : "👤"}
                         </div>
                         <div className="player-info">
@@ -2607,7 +2647,10 @@ export default function MacedonianScrabble({
                             {isCurrentTurn && (
                               <span
                                 className="status-dot"
-                                style={{ background: "var(--primary)", borderRadius: "50%" }}
+                                style={{
+                                  background: "var(--primary)",
+                                  borderRadius: "50%",
+                                }}
                               />
                             )}
                             {p.skipPenalty && <span>пропушта</span>}
@@ -2625,316 +2668,6 @@ export default function MacedonianScrabble({
               </div>
             );
           })()}
-          {/* CHALLENGE PANEL */}
-          {screen === "challenge" &&
-            (() => {
-              const opponents = players.filter(
-                (p, i) => i !== currentPlayer && p.type === "human",
-              );
-              const opponentNames = opponents.map((o) => o.name).join(", ");
-              return (
-                <div
-                  style={{
-                    margin: "0 auto 4px",
-                    padding: 16,
-                    background: "rgba(245,158,11,0.06)",
-                    borderRadius: 12,
-                    border: "1px solid rgba(245,158,11,0.2)",
-                    animation: "fadeIn 0.2s ease",
-                  }}
-                >
-                  {!challengeResult && !isValidating && (
-                    <div style={{ textAlign: "center" }}>
-                      <div
-                        style={{
-                          fontSize: 10,
-                          color: "#f59e0b",
-                          fontWeight: 700,
-                          marginBottom: 4,
-                          letterSpacing: 2,
-                        }}
-                      >
-                        ⚖️ ОДЛУКА — {opponentNames}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          color: S.muted,
-                          marginBottom: 12,
-                        }}
-                      >
-                        {players[currentPlayer].name} постави зборови. Прифати
-                        или предизвикај:
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 4,
-                          justifyContent: "center",
-                          flexWrap: "wrap",
-                          marginBottom: 12,
-                        }}
-                      >
-                        {formedWords.map((w, i) => (
-                          <div
-                            key={i}
-                            style={{
-                              display: "flex",
-                              borderRadius: 8,
-                              overflow: "hidden",
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-                            }}
-                          >
-                            <span
-                              style={{
-                                padding: "6px 12px",
-                                background: "rgba(16,185,129,0.15)",
-                                fontSize: 13,
-                                color: "#34d399",
-                                fontWeight: 700,
-                                fontFamily: "'Space Mono', monospace",
-                                display: "flex",
-                                alignItems: "center",
-                              }}
-                            >
-                              {w.word}
-                            </span>
-                            <button
-                              onClick={() => requestWordInfo(w.word)}
-                              style={{
-                                ...S.btnSm("rgba(99,102,241,0.2)"),
-                                borderRadius: 0,
-                                color: "#a5b4fc",
-                                padding: "6px 8px",
-                              }}
-                              title="Инфо"
-                            >
-                              📖
-                            </button>
-                            <button
-                              onClick={() => challengeWord(w.word)}
-                              style={{
-                                ...S.btnSm("rgba(239,68,68,0.6)"),
-                                borderRadius: 0,
-                                padding: "6px 10px",
-                                color: "#fff",
-                              }}
-                            >
-                              🔍
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                      <button
-                        onClick={() => finalizeTurn()}
-                        style={{
-                          ...S.btn("linear-gradient(135deg, #10b981, #059669)"),
-                          transition: "all 0.2s",
-                        }}
-                      >
-                        ✅ Прифати ({turnScore} п.)
-                      </button>
-                      {isLoadingInfo && (
-                        <div
-                          style={{
-                            color: "#a5b4fc",
-                            fontSize: 11,
-                            marginTop: 8,
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: "inline-block",
-                              animation: "aispin 1s linear infinite",
-                              marginRight: 4,
-                            }}
-                          >
-                            📖
-                          </span>
-                          Се вчитува...
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {isValidating && (
-                    <div
-                      style={{
-                        textAlign: "center",
-                        color: "#a5b4fc",
-                        fontSize: 12,
-                        padding: "8px 0",
-                      }}
-                    >
-                      <span
-                        style={{
-                          display: "inline-block",
-                          animation: "aispin 1s linear infinite",
-                          marginRight: 6,
-                        }}
-                      >
-                        🤖
-                      </span>
-                      Агент пребарува во МК речници...
-                    </div>
-                  )}
-                  {challengeResult && (
-                    <div style={{ textAlign: "center" }}>
-                      <div
-                        style={{
-                          padding: 12,
-                          borderRadius: 10,
-                          marginBottom: 12,
-                          background: "rgba(0,0,0,0.25)",
-                          border: `1px solid ${challengeResult.valid ? "rgba(16,185,129,0.3)" : challengeResult.valid === false ? "rgba(239,68,68,0.3)" : "rgba(245,158,11,0.3)"}`,
-                        }}
-                      >
-                        <div style={{ fontSize: 18, marginBottom: 4 }}>
-                          {challengeResult.valid
-                            ? "✅"
-                            : challengeResult.valid === false
-                              ? "❌"
-                              : "⚠️"}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 14,
-                            fontWeight: 700,
-                            fontFamily: "'Space Mono', monospace",
-                            color: challengeResult.valid
-                              ? "#34d399"
-                              : challengeResult.valid === false
-                                ? "#f87171"
-                                : "#fbbf24",
-                            marginBottom: 4,
-                          }}
-                        >
-                          {challengeResult.word}
-                        </div>
-                        <div style={{ fontSize: 11, color: S.muted }}>
-                          {challengeResult.explanation}
-                        </div>
-                        {challengeResult.definition && (
-                          <div
-                            style={{
-                              fontSize: 11,
-                              color: "#94a3b8",
-                              fontStyle: "italic",
-                              marginTop: 4,
-                            }}
-                          >
-                            📖 {challengeResult.definition}
-                          </div>
-                        )}
-                        {challengeResult.valid === true && (
-                          <div
-                            style={{
-                              fontSize: 10,
-                              color: "#f59e0b",
-                              marginTop: 6,
-                              fontWeight: 600,
-                            }}
-                          >
-                            ⚠️ {opponentNames} го губи следниот ред!
-                          </div>
-                        )}
-                        {challengeResult.valid === false && (
-                          <div
-                            style={{
-                              fontSize: 10,
-                              color: "#f87171",
-                              marginTop: 6,
-                              fontWeight: 600,
-                            }}
-                          >
-                            ✅ Успешен предизвик! Плочките се вратени.
-                          </div>
-                        )}
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 8,
-                          justifyContent: "center",
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        {challengeResult.valid === true && (
-                          <>
-                            <button
-                              onClick={() => {
-                                showingChallengeResultRef.current = false;
-                                setChallengeResult(null);
-                                setScreen("playing");
-                              }}
-                              style={S.btn(
-                                "linear-gradient(135deg, #10b981, #059669)",
-                              )}
-                            >
-                              Продолжи
-                            </button>
-                            <button
-                              onClick={() =>
-                                requestWordInfo(challengeResult.word)
-                              }
-                              style={S.btnO}
-                            >
-                              📖 Инфо
-                            </button>
-                          </>
-                        )}
-                        {challengeResult.valid === false && (
-                          <>
-                            <button
-                              onClick={() => {
-                                showingChallengeResultRef.current = false;
-                                setChallengeResult(null);
-                                setScreen("playing");
-                              }}
-                              style={S.btn(
-                                "linear-gradient(135deg, #f59e0b, #d97706)",
-                              )}
-                            >
-                              🔄 Врати плочки
-                            </button>
-                          </>
-                        )}
-                        {challengeResult.valid === null && (
-                          <>
-                            <button
-                              onClick={() => {
-                                showingChallengeResultRef.current = false;
-                                setChallengeResult(null);
-                                setScreen("playing");
-                              }}
-                              style={S.btn(
-                                "linear-gradient(135deg, #10b981, #059669)",
-                              )}
-                            >
-                              Прифати
-                            </button>
-                            <button
-                              onClick={() => {
-                                setChallengeResult(null);
-                                setScreen("playing");
-                                setMessage(
-                                  `${players[currentPlayer].name} — пробај повторно!`,
-                                );
-                              }}
-                              style={S.btn(
-                                "linear-gradient(135deg, #f59e0b, #d97706)",
-                              )}
-                            >
-                              🔄 Врати
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
           {/* GAME LOG */}
           {gameLog.length > 0 && (
             <div className="side-panel">
