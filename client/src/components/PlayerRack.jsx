@@ -9,7 +9,6 @@ export default function PlayerRack({
   players,
   placedTiles,
   turnScore,
-  theme,
   onDragStart,
   onDragOver,
   onDropOnRack,
@@ -18,7 +17,6 @@ export default function PlayerRack({
   onPassTurn,
   onExchangeTiles,
   getDisplayLetter,
-  tileStyle,
 }) {
   if (!isMyTurn || isAIThinking || !rack?.length) return null;
 
@@ -44,19 +42,14 @@ export default function PlayerRack({
       {rack.map((tile, i) => (
         <div
           key={tile.id}
-          className="tile-rack"
+          className={`tile-rack scrabble-tile${
+            selectedTile?.id === tile.id ? " scrabble-tile--selected" : ""
+          }${draggedTile?.id === tile.id ? " scrabble-tile--dragging" : ""}`}
           draggable
           onDragStart={(e) => onDragStart(e, tile, i)}
           onDragEnd={() => {}}
           onClick={() => onSelectTile(tile, i)}
-          style={{
-            ...tileStyle(
-              tile,
-              selectedTile?.id === tile.id,
-              draggedTile?.id === tile.id,
-            ),
-            transition: "all 0.15s ease",
-          }}
+          style={{ transition: "all 0.15s ease" }}
         >
           {getDisplayLetter(tile)}
           <span
@@ -84,12 +77,8 @@ export default function PlayerRack({
       >
         {placedTiles.length > 0 && (
           <button
-            className="action-btn"
+            className="scrabble-button scrabble-button--success action-btn"
             onClick={onConfirmPlacement}
-            style={{
-              ...theme.btn("linear-gradient(135deg, #10b981, #059669)"),
-              transition: "all 0.15s",
-            }}
           >
             ✓ Потврди{" "}
             <span style={{ fontFamily: "'Space Mono', monospace" }}>
@@ -98,19 +87,17 @@ export default function PlayerRack({
           </button>
         )}
         <button
-          className="action-btn"
+          className="scrabble-button scrabble-button--outline action-btn"
           onClick={onPassTurn}
-          style={{ ...theme.btnO, transition: "all 0.15s" }}
         >
           Пас
         </button>
         {placedTiles.length === 0 && (
           <button
-            className="action-btn"
+            className="scrabble-button scrabble-button--outline action-btn"
             onClick={onExchangeTiles}
             disabled={currentPlayer?.score < 5}
             style={{
-              ...theme.btnO,
               opacity: currentPlayer?.score < 5 ? 0.3 : 1,
               cursor: currentPlayer?.score < 5 ? "not-allowed" : "pointer",
               transition: "all 0.15s",

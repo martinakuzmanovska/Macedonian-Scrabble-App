@@ -1,4 +1,4 @@
-export default function JokerModal({ theme, letters, onSelect }) {
+export default function JokerModal({ letters, onSelect }) {
   return (
     <div
       style={{

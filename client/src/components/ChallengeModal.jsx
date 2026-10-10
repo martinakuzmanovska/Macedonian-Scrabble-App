@@ -1,5 +1,4 @@
 export default function ChallengeModal({
-  theme,
   players,
   currentPlayer,
   formedWords,
@@ -29,8 +28,8 @@ export default function ChallengeModal({
   };
 
   const actionButton = (bg, fg = "#fff") => ({
-    ...theme.btn(bg),
-    color: fg,
+    "--scrabble-button-background": bg,
+    "--scrabble-button-color": fg,
     border: "1px solid transparent",
     boxShadow: "0 4px 12px oklch(0.32 0.04 150 / 0.12)",
     transition: "transform 0.15s ease, boxShadow 0.15s ease",
@@ -176,6 +175,7 @@ export default function ChallengeModal({
               ))}
             </div>
             <button
+              className="scrabble-button"
               onClick={() => finalizeTurn()}
               style={actionButton(
                 "linear-gradient(135deg, var(--primary), oklch(0.59 0.065 151))",
@@ -318,6 +318,7 @@ export default function ChallengeModal({
               {challengeResult.valid === true && (
                 <>
                   <button
+                    className="scrabble-button"
                     onClick={onClose}
                     style={actionButton(
                       "linear-gradient(135deg, var(--primary), oklch(0.59 0.065 151))",
@@ -326,9 +327,9 @@ export default function ChallengeModal({
                     Продолжи
                   </button>
                   <button
+                    className="scrabble-button scrabble-button--outline"
                     onClick={() => requestWordInfo(challengeResult.word)}
                     style={{
-                      ...theme.btnO,
                       borderColor: "var(--border)",
                       color: "var(--primary)",
                     }}
@@ -339,6 +340,7 @@ export default function ChallengeModal({
               )}
               {challengeResult.valid === false && (
                 <button
+                  className="scrabble-button"
                   onClick={onClose}
                   style={actionButton(
                     "linear-gradient(135deg, oklch(0.76 0.08 36), oklch(0.68 0.1 24))",
@@ -350,6 +352,7 @@ export default function ChallengeModal({
               {challengeResult.valid === null && (
                 <>
                   <button
+                    className="scrabble-button"
                     onClick={onClose}
                     style={actionButton(
                       "linear-gradient(135deg, var(--primary), oklch(0.59 0.065 151))",
@@ -358,6 +361,7 @@ export default function ChallengeModal({
                     Прифати
                   </button>
                   <button
+                    className="scrabble-button"
                     onClick={onRetry}
                     style={actionButton(
                       "linear-gradient(135deg, oklch(0.76 0.08 36), oklch(0.68 0.1 24))",

@@ -1,20 +1,9 @@
-export default function LeaderboardScreen({ leaderboard, styles, onBack }) {
-  const S = styles;
-
+export default function LeaderboardScreen({ leaderboard, onBack }) {
   return (
-    <div
-      style={{
-        ...S.page,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-      }}
-    >
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap');`}</style>
+    <div className="scrabble-page scrabble-page--centered">
       <div
+        className="scrabble-card"
         style={{
-          ...S.card,
           padding: "36px 32px",
           maxWidth: 580,
           width: "100%",
@@ -32,7 +21,7 @@ export default function LeaderboardScreen({ leaderboard, styles, onBack }) {
             <div
               style={{
                 fontSize: 11,
-                color: S.accent,
+                color: "var(--scrabble-accent)",
                 letterSpacing: 4,
                 fontWeight: 600,
                 marginBottom: 4,
@@ -45,8 +34,9 @@ export default function LeaderboardScreen({ leaderboard, styles, onBack }) {
             </h2>
           </div>
           <button
+            className="scrabble-button scrabble-button--outline"
             onClick={onBack}
-            style={{ ...S.btnO, padding: "6px 16px", fontSize: 12 }}
+            style={{ padding: "6px 16px", fontSize: 12 }}
           >
             ← Назад
           </button>
@@ -57,7 +47,7 @@ export default function LeaderboardScreen({ leaderboard, styles, onBack }) {
             style={{
               textAlign: "center",
               padding: 48,
-              color: S.muted,
+              color: "var(--scrabble-muted)",
               fontSize: 13,
             }}
           >
@@ -71,7 +61,7 @@ export default function LeaderboardScreen({ leaderboard, styles, onBack }) {
                 gridTemplateColumns: "36px 1fr 60px 60px 50px 50px",
                 gap: 8,
                 padding: "6px 12px",
-                color: S.muted,
+                color: "var(--scrabble-muted)",
                 fontSize: 10,
                 fontWeight: 600,
                 letterSpacing: 1,
@@ -114,7 +104,9 @@ export default function LeaderboardScreen({ leaderboard, styles, onBack }) {
                   ) : index === 2 ? (
                     "🥉"
                   ) : (
-                    <span style={{ color: S.muted, fontSize: 12 }}>
+                    <span
+                      style={{ color: "var(--scrabble-muted)", fontSize: 12 }}
+                    >
                       {index + 1}
                     </span>
                   )}
@@ -123,7 +115,13 @@ export default function LeaderboardScreen({ leaderboard, styles, onBack }) {
                   <div style={{ fontWeight: 600, fontSize: 13 }}>
                     {entry.name}
                   </div>
-                  <div style={{ fontSize: 10, color: S.muted, marginTop: 1 }}>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: "var(--scrabble-muted)",
+                      marginTop: 1,
+                    }}
+                  >
                     возраст: {entry.age}
                   </div>
                 </div>
@@ -138,17 +136,29 @@ export default function LeaderboardScreen({ leaderboard, styles, onBack }) {
                   {entry.bestScore}
                 </span>
                 <span
-                  style={{ textAlign: "right", color: S.muted, fontSize: 12 }}
+                  style={{
+                    textAlign: "right",
+                    color: "var(--scrabble-muted)",
+                    fontSize: 12,
+                  }}
                 >
                   {entry.avgScore}
                 </span>
                 <span
-                  style={{ textAlign: "right", color: S.muted, fontSize: 12 }}
+                  style={{
+                    textAlign: "right",
+                    color: "var(--scrabble-muted)",
+                    fontSize: 12,
+                  }}
                 >
                   {entry.totalGames}
                 </span>
                 <span
-                  style={{ textAlign: "right", color: S.muted, fontSize: 12 }}
+                  style={{
+                    textAlign: "right",
+                    color: "var(--scrabble-muted)",
+                    fontSize: 12,
+                  }}
                 >
                   {entry.wins}
                 </span>

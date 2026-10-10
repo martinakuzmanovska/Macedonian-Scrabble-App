@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import "./Lobby.css";
 import { loadLeaderboard } from "../services/leaderboardService.js";
 
 export default function Lobby({
@@ -48,14 +49,6 @@ export default function Lobby({
     if (inviteCode.trim()) onJoin(inviteCode.trim());
   };
 
-  const card = {
-    background: "rgba(14,19,31,0.95)",
-    backdropFilter: "blur(12px)",
-    borderRadius: 20,
-    border: "1px solid rgba(99,102,241,0.18)",
-    boxShadow:
-      "0 32px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)",
-  };
   const btn = (bg) => ({
     padding: "10px 22px",
     background: bg,
@@ -68,74 +61,12 @@ export default function Lobby({
     fontWeight: 600,
     transition: "all 0.15s",
   });
-  const btnO = {
-    padding: "10px 22px",
-    background: "transparent",
-    color: "#6366f1",
-    border: "1.5px solid rgba(99,102,241,0.35)",
-    borderRadius: 10,
-    fontSize: 13,
-    cursor: "pointer",
-    fontFamily: "inherit",
-    fontWeight: 600,
-  };
-
   return (
     <div
-      style={{
-        minHeight: "100vh",
-        background: "var(--app-background)",
-        fontFamily: "'DM Sans','Segoe UI',sans-serif",
-        color: "#f1f5f9",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-        position: "relative",
-        overflow: "hidden",
-      }}
+      className="lobby-screen"
     >
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap');
-        @keyframes pulse-glow { 0%,100%{opacity:0.3} 50%{opacity:0.6} }
-        input:focus { outline: none; border-color: rgba(99,102,241,0.5) !important; }
-        input[type=range] { height: 4px; }
-      `}</style>
-
       <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          backgroundImage:
-            "linear-gradient(rgba(99,102,241,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.03) 1px, transparent 1px)",
-          backgroundSize: "40px 40px",
-          pointerEvents: "none",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          top: "10%",
-          right: "15%",
-          width: 350,
-          height: 350,
-          borderRadius: "50%",
-          background:
-            "radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%)",
-          animation: "pulse-glow 6s ease-in-out infinite",
-          pointerEvents: "none",
-        }}
-      />
-
-      <div
-        style={{
-          ...card,
-          padding: "36px 32px",
-          maxWidth: 520,
-          width: "100%",
-          position: "relative",
-          zIndex: 1,
-        }}
+        className="lobby-card"
       >
         {showLeaderboard && (
           <div
@@ -157,11 +88,12 @@ export default function Lobby({
               style={{
                 width: "100%",
                 maxWidth: 560,
-                background: "rgba(15,23,42,0.96)",
-                border: "1px solid rgba(99,102,241,0.2)",
+                background: "var(--card)",
+                border: "1px solid var(--border)",
                 borderRadius: 18,
-                boxShadow: "0 30px 90px rgba(0,0,0,0.6)",
+                boxShadow: "var(--surface-shadow)",
                 padding: 24,
+                color: "var(--foreground)",
               }}
             >
               <div
@@ -177,7 +109,7 @@ export default function Lobby({
                     style={{
                       fontSize: 10,
                       letterSpacing: 3,
-                      color: "#a5b4fc",
+                      color: "var(--primary)",
                       marginBottom: 6,
                     }}
                   >
@@ -205,7 +137,7 @@ export default function Lobby({
 
               {!leaderboard.length ? (
                 <div
-                  style={{ textAlign: "center", padding: 32, color: "#94a3b8" }}
+                    style={{ textAlign: "center", padding: 32, color: "var(--muted-foreground)" }}
                 >
                   Сè уште нема резултати!
                 </div>
@@ -240,13 +172,13 @@ export default function Lobby({
                         gridTemplateColumns: "32px 1fr 60px 60px 50px 50px",
                         gap: 8,
                         padding: "10px 12px",
-                        background: "rgba(99,102,241,0.05)",
-                        border: "1px solid rgba(99,102,241,0.08)",
+                        background: "var(--secondary)",
+                        border: "1px solid var(--border)",
                         borderRadius: 10,
                         alignItems: "center",
                       }}
                     >
-                      <span style={{ fontWeight: 700, color: "#a5b4fc" }}>
+                      <span style={{ fontWeight: 700, color: "var(--primary)" }}>
                         {index + 1}
                       </span>
                       <span style={{ fontWeight: 600 }}>{entry.name}</span>
@@ -286,9 +218,7 @@ export default function Lobby({
                 fontSize: 22,
                 fontWeight: 700,
                 letterSpacing: 3,
-                background: "linear-gradient(135deg, #f8fafc, #a5b4fc)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
+                color: "var(--primary)",
               }}
             >
               СКРАБЛ
@@ -296,7 +226,7 @@ export default function Lobby({
             <div
               style={{
                 fontSize: 9,
-                color: "#334155",
+                color: "var(--muted-foreground)",
                 letterSpacing: 3,
                 marginTop: 2,
                 textTransform: "uppercase",
@@ -319,7 +249,7 @@ export default function Lobby({
               />
             )}
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>
                 {user.displayName}
               </div>
               <div
@@ -335,7 +265,7 @@ export default function Lobby({
                   style={{
                     background: "none",
                     border: "none",
-                    color: "#a5b4fc",
+                    color: "var(--primary)",
                     fontSize: 10,
                     cursor: "pointer",
                     padding: 0,
@@ -350,7 +280,7 @@ export default function Lobby({
                   style={{
                     background: "none",
                     border: "none",
-                    color: "#334155",
+                    color: "var(--muted-foreground)",
                     fontSize: 10,
                     cursor: "pointer",
                     padding: 0,
@@ -367,37 +297,13 @@ export default function Lobby({
 
         {/* Tabs */}
         <div
-          style={{
-            display: "flex",
-            gap: 3,
-            marginBottom: 24,
-            background: "rgba(0,0,0,0.3)",
-            borderRadius: 10,
-            padding: 3,
-          }}
+          className="lobby-tabs"
         >
           {["create", "join"].map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              style={{
-                flex: 1,
-                padding: "9px",
-                borderRadius: 8,
-                fontSize: 12,
-                cursor: "pointer",
-                fontFamily: "inherit",
-                border: "none",
-                fontWeight: 600,
-                transition: "all 0.15s",
-                background:
-                  tab === t
-                    ? "linear-gradient(135deg, #6366f1, #4f46e5)"
-                    : "transparent",
-                color: tab === t ? "#fff" : "#475569",
-                boxShadow:
-                  tab === t ? "0 2px 8px rgba(99,102,241,0.3)" : "none",
-              }}
+              className={`lobby-tab${tab === t ? " lobby-tab--active" : ""}`}
             >
               {t === "create" ? "🎮 Нова Игра" : "🔗 Приклучи се"}
             </button>
@@ -705,69 +611,26 @@ export default function Lobby({
         {/* Join tab */}
         {tab === "join" && (
           <div>
-            <div
-              style={{
-                fontSize: 12,
-                color: "#475569",
-                marginBottom: 20,
-                lineHeight: 1.7,
-                padding: "12px 14px",
-                background: "rgba(99,102,241,0.05)",
-                borderRadius: 10,
-                border: "1px solid rgba(99,102,241,0.1)",
-              }}
-            >
+            <div className="lobby-join-help">
               🔗 Внеси го кодот за покана кој го добил од другиот играч.
             </div>
             <input
+              className="lobby-invite-code"
               value={inviteCode}
               onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
               placeholder="пр. XK9MQ2"
               maxLength={8}
-              style={{
-                width: "100%",
-                padding: "14px",
-                background: "rgba(255,255,255,0.04)",
-                border: "1.5px solid rgba(99,102,241,0.2)",
-                borderRadius: 10,
-                color: "#f1f5f9",
-                fontSize: 24,
-                fontFamily: "'Space Mono',monospace",
-                letterSpacing: 8,
-                textAlign: "center",
-                marginBottom: 12,
-                boxSizing: "border-box",
-                transition: "border-color 0.2s",
-              }}
             />
 
             {error && (
-              <div
-                style={{
-                  color: "#f87171",
-                  fontSize: 11,
-                  marginBottom: 10,
-                  textAlign: "center",
-                  padding: "6px 12px",
-                  background: "rgba(239,68,68,0.08)",
-                  borderRadius: 8,
-                }}
-              >
-                {error}
-              </div>
+              <div className="lobby-error">{error}</div>
             )}
 
             <button
+              className="lobby-join-button"
               onClick={handleJoin}
               disabled={loading || !inviteCode.trim()}
-              style={{
-                ...btn("linear-gradient(135deg, #22d3ee, #0891b2)"),
-                width: "100%",
-                padding: "14px 24px",
-                fontSize: 15,
-                letterSpacing: 1,
-                opacity: loading || !inviteCode.trim() ? 0.4 : 1,
-              }}
+              style={{ opacity: loading || !inviteCode.trim() ? 0.4 : 1 }}
             >
               {loading ? "Се приклучува..." : "Приклучи се 🔗"}
             </button>

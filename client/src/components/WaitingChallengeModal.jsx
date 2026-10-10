@@ -1,4 +1,4 @@
-export default function WaitingChallengeModal({ theme, message }) {
+export default function WaitingChallengeModal({ message }) {
   return (
     <>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>

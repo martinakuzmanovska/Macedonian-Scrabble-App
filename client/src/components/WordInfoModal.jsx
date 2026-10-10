@@ -1,4 +1,4 @@
-export default function WordInfoModal({ theme, wordInfo, onClose }) {
+export default function WordInfoModal({ wordInfo, onClose }) {
   if (!wordInfo) return null;
 
   return (

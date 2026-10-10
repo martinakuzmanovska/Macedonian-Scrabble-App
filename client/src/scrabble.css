@@ -1,0 +1,249 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap");
+
+.scrabble-page {
+  --scrabble-accent: #6366f1;
+  --scrabble-muted: #475569;
+  width: 100%;
+  min-height: 100vh;
+  background: var(--app-background, #f5f7f3);
+  color: #f1f5f9;
+  font-family: "DM Sans", "Segoe UI", sans-serif;
+}
+
+.scrabble-page--centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.scrabble-home {
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      ellipse at 16% 20%,
+      oklch(0.91 0.045 145 / 0.55),
+      transparent 38%
+    ),
+    radial-gradient(
+      ellipse at 88% 82%,
+      oklch(0.92 0.055 90 / 0.55),
+      transparent 34%
+    ),
+    var(--app-background, #f5f7f3);
+}
+
+.scrabble-home::before {
+  position: absolute;
+  z-index: -1;
+  background-image:
+    linear-gradient(oklch(0.47 0.062 151 / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.47 0.062 151 / 0.035) 1px, transparent 1px);
+  background-size: 40px 40px;
+  content: "";
+  inset: 0;
+  pointer-events: none;
+}
+
+.scrabble-home .scrabble-card {
+  border-color: var(--border);
+  background: color-mix(in oklch, var(--card) 94%, var(--secondary));
+  box-shadow:
+    0 24px 60px oklch(0.3 0.03 150 / 0.1),
+    inset 0 1px 0 oklch(1 0 0 / 0.8);
+}
+
+.scrabble-home .home-eyebrow {
+  color: var(--primary);
+}
+
+.scrabble-home .home-wordmark {
+  color: var(--primary);
+  animation: float 6s ease-in-out infinite;
+}
+
+.scrabble-home .home-divider {
+  background: linear-gradient(90deg, var(--primary), var(--tile-edge));
+}
+
+.scrabble-home .scrabble-button--primary {
+  --scrabble-button-background: linear-gradient(
+    135deg,
+    var(--primary),
+    #607b64
+  );
+  box-shadow: 0 4px 14px oklch(0.47 0.062 151 / 0.22);
+}
+
+.scrabble-home .scrabble-button--outline {
+  border-color: var(--border);
+  color: var(--primary);
+}
+
+.scrabble-home .home-btn:hover {
+  box-shadow: 0 8px 22px oklch(0.47 0.062 151 / 0.24);
+}
+
+.scrabble-home .home-btn-o:hover {
+  background: var(--secondary);
+}
+
+.home-feature {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--secondary);
+  color: var(--muted-foreground);
+}
+
+.home-feature-icon {
+  color: var(--primary);
+}
+
+.scrabble-card {
+  background: rgba(20, 25, 39, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  border-radius: 16px;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.scrabble-button {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 10px;
+  background: var(--scrabble-button-background, #6366f1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  color: var(--scrabble-button-color, #fff);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: all 0.15s;
+}
+
+.scrabble-button--primary {
+  --scrabble-button-background: linear-gradient(135deg, #6366f1, #4f46e5);
+}
+
+.scrabble-button--success {
+  --scrabble-button-background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.scrabble-button--outline {
+  padding: 10px 24px;
+  border: 1.5px solid rgba(99, 102, 241, 0.4);
+  background: transparent;
+  box-shadow: none;
+  color: var(--scrabble-accent);
+}
+
+.scrabble-tile {
+  position: relative;
+  display: flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--tile-edge);
+  border-radius: 4px;
+  background: var(--tile);
+  box-shadow: var(--tile-shadow);
+  color: var(--tile-ink);
+  cursor: grab;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  opacity: 1;
+  user-select: none;
+  transition: all 0.12s ease;
+}
+
+.scrabble-tile--selected {
+  border: 2px solid var(--tile-edge);
+}
+
+.scrabble-tile--dragging {
+  opacity: 0.35;
+}
+
+.home-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.2);
+}
+
+.home-btn-o:hover {
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.board-cell:hover {
+  z-index: 1;
+  outline: 1px solid rgba(45, 60, 45, 0.8);
+  outline-offset: -1px;
+}
+
+.tile-rack:hover {
+  transform: translateY(-4px) scale(1.05);
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+}
+
+.action-btn:hover {
+  opacity: 0.85;
+  transform: translateY(-1px);
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+@keyframes aispin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.scrabble-page ::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrabble-page ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrabble-page ::-webkit-scrollbar-thumb {
+  border-radius: 2px;
+  background: rgba(99, 102, 241, 0.3);
+}

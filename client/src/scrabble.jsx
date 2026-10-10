@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import "./scrabble.css";
 import { useAIMove } from "./hooks/useAIMove.js";
 import SetupScreen from "./components/SetupScreen.jsx";
 import GameOverScreen from "./components/GameOverScreen.jsx";
@@ -682,37 +683,6 @@ export default function MacedonianScrabble({
     setScreen("challenge");
   };
 
-  // ─── CHALLENGE & WORD INFO ───
-  // const challengeWord = async (word) => {
-  //   setIsValidating(true); setChallengeResult(null);
-  //   setMessage(`🤖 Агент пребарува "${word}" во речници...`);
-  //   try {
-  //     const result = await validateWordWithAI(word);
-  //     if (result.valid === null) { setChallengeResult({ word, ...result }); setMessage('⚠️ Проверката не успеа.'); return; }
-  //     let challengerIdx = -1;
-  //     for (let off = 1; off < players.length; off++) { const idx = (currentPlayer + off) % players.length; if (players[idx].type === 'human') { challengerIdx = idx; break; } }
-  //     if (result.valid) {
-  //       SFX.challengeValid();
-  //       setChallengeResult({ word, ...result });
-  //       if (challengerIdx >= 0) {
-  //         const np = [...players]; np[challengerIdx] = { ...np[challengerIdx], skipPenalty: true }; setPlayers(np);
-  //         setMessage(`✅ "${word}" е валиден! ${np[challengerIdx].name} го губи следниот ред.`);
-  //         addLog(`🔍 "${word}" потврден — ${np[challengerIdx].name} казнет`);
-  //       }
-  //     } else {
-  //       SFX.challengeInvalid();
-  //       setChallengeResult({ word, ...result });
-  //       setMessage(`❌ "${word}" НЕ е валиден! ${players[currentPlayer].name} враќа плочки.`);
-  //       addLog(`🔍 "${word}" одбиен`);
-  //     }
-  //   } catch {
-  //     setChallengeResult({ word, valid: null, explanation: "Грешка при проверка.", definition: "", source: "" });
-  //     setMessage('⚠️ Проверката не успеа.');
-  //   } finally {
-  //     setIsValidating(false);
-  //   }
-  // };
-
   const challengeWord = async (word) => {
     setIsValidating(true);
     setChallengeResult(null);
@@ -1131,164 +1101,14 @@ export default function MacedonianScrabble({
   endGameRef.current = endGame;
 
   // ═══════════════════════════════════════════
-  // STYLES
-  // ═══════════════════════════════════════════
-
-  // ═══════════════════════════════════════════
-  // DESIGN SYSTEM — Modern Dark
-  // ═══════════════════════════════════════════
-  const S = {
-    page: {
-      width: "100%",
-      minHeight: "100vh",
-      background: "var(--app-background, #f5f7f3)",
-      fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
-      color: "#f1f5f9",
-    },
-    card: {
-      background: "rgba(20, 25, 39, 0.95)",
-      backdropFilter: "blur(12px)",
-      borderRadius: 16,
-      border: "1px solid rgba(99, 102, 241, 0.18)",
-      boxShadow:
-        "0 24px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)",
-    },
-    accent: "#6366f1",
-    accentCyan: "#22d3ee",
-    green: "#10b981",
-    red: "#ef4444",
-    orange: "#f59e0b",
-    muted: "#475569",
-    subtle: "#1e293b",
-    btn: (bg) => ({
-      padding: "10px 24px",
-      background: bg,
-      color: "#fff",
-      border: "none",
-      borderRadius: 10,
-      fontSize: 13,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      fontWeight: 600,
-      transition: "all 0.15s",
-      letterSpacing: "0.02em",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-    }),
-    btnO: {
-      padding: "10px 24px",
-      background: "transparent",
-      color: "#6366f1",
-      border: "1.5px solid rgba(99,102,241,0.4)",
-      borderRadius: 10,
-      fontSize: 13,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      fontWeight: 600,
-      letterSpacing: "0.02em",
-    },
-    btnSm: (bg) => ({
-      padding: "5px 12px",
-      background: bg,
-      color: "#fff",
-      border: "none",
-      borderRadius: 7,
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      fontWeight: 600,
-    }),
-  };
-
-  const tileStyle = (tile, isSelected, isDragging) => ({
-    width: 40,
-    height: 40,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-    borderRadius: 4,
-    background: "var(--tile)",
-    border: isSelected
-      ? "2px solid var(--tile-edge)"
-      : "1px solid var(--tile-edge)",
-    cursor: "grab",
-    fontWeight: 700,
-    fontSize: 16,
-    color: "var(--tile-ink)",
-    fontFamily: "inherit",
-    boxShadow: "var(--tile-shadow)",
-    userSelect: "none",
-    opacity: isDragging ? 0.35 : 1,
-    transition: "all 0.12s ease",
-  });
-
-  // ═══════════════════════════════════════════
   // HOME
   // ═══════════════════════════════════════════
   if (screen === "home")
     return (
-      <div
-        style={{
-          ...S.page,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 20,
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap');
-        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-        @keyframes pulse-glow { 0%,100%{opacity:0.4} 50%{opacity:0.8} }
-        .home-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(99,102,241,0.35) !important; }
-        .home-btn-o:hover { background: rgba(99,102,241,0.1) !important; }
-      `}</style>
-        {/* Background grid */}
+      <div className="scrabble-page scrabble-page--centered scrabble-home">
         <div
+          className="scrabble-card"
           style={{
-            position: "absolute",
-            inset: 0,
-            backgroundImage:
-              "linear-gradient(rgba(99,102,241,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.04) 1px, transparent 1px)",
-            backgroundSize: "40px 40px",
-            pointerEvents: "none",
-          }}
-        />
-        {/* Glow orbs */}
-        <div
-          style={{
-            position: "absolute",
-            top: "20%",
-            left: "15%",
-            width: 300,
-            height: 300,
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)",
-            animation: "pulse-glow 4s ease-in-out infinite",
-            pointerEvents: "none",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: "20%",
-            right: "10%",
-            width: 200,
-            height: 200,
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(34,211,238,0.1) 0%, transparent 70%)",
-            animation: "pulse-glow 5s ease-in-out infinite 1s",
-            pointerEvents: "none",
-          }}
-        />
-
-        <div
-          style={{
-            ...S.card,
             padding: "52px 44px",
             maxWidth: 440,
             width: "100%",
@@ -1298,10 +1118,10 @@ export default function MacedonianScrabble({
           }}
         >
           <div
+            className="home-eyebrow"
             style={{
               fontSize: 11,
               letterSpacing: 6,
-              color: S.accent,
               fontWeight: 600,
               marginBottom: 12,
               textTransform: "uppercase",
@@ -1311,26 +1131,22 @@ export default function MacedonianScrabble({
             Македонско Издание
           </div>
           <div
+            className="home-wordmark"
             style={{
               fontFamily: "'Space Mono', monospace",
               fontSize: 52,
               fontWeight: 700,
               letterSpacing: 6,
-              background:
-                "linear-gradient(135deg, #f8fafc 0%, #a5b4fc 50%, #22d3ee 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
               marginBottom: 8,
-              animation: "float 6s ease-in-out infinite",
             }}
           >
             СКРАБЛ
           </div>
           <div
+            className="home-divider"
             style={{
               width: 48,
               height: 3,
-              background: "linear-gradient(90deg, #6366f1, #22d3ee)",
               borderRadius: 2,
               margin: "0 auto 40px",
             }}
@@ -1338,10 +1154,9 @@ export default function MacedonianScrabble({
 
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <button
-              className="home-btn"
+              className="scrabble-button scrabble-button--primary home-btn"
               onClick={() => setScreen("setup")}
               style={{
-                ...S.btn("linear-gradient(135deg, #6366f1, #4f46e5)"),
                 padding: "14px 24px",
                 fontSize: 15,
                 letterSpacing: 1,
@@ -1351,13 +1166,12 @@ export default function MacedonianScrabble({
               🎮 Нова Игра
             </button>
             <button
-              className="home-btn-o"
+              className="scrabble-button scrabble-button--outline home-btn-o"
               onClick={() => {
                 loadLeaderboard().then(setLeaderboard);
                 setScreen("leaderboard");
               }}
               style={{
-                ...S.btnO,
                 padding: "14px 24px",
                 fontSize: 15,
                 transition: "all 0.2s",
@@ -1383,19 +1197,16 @@ export default function MacedonianScrabble({
             ].map((f, i) => (
               <div
                 key={i}
+                className="home-feature"
                 style={{
                   padding: "10px 12px",
-                  background: "rgba(99,102,241,0.06)",
-                  borderRadius: 10,
-                  border: "1px solid rgba(99,102,241,0.1)",
                   fontSize: 11,
-                  color: S.muted,
                   display: "flex",
                   alignItems: "center",
                   gap: 6,
                 }}
               >
-                <span>{f.icon}</span>
+                <span className="home-feature-icon">{f.icon}</span>
                 <span>{f.text}</span>
               </div>
             ))}
@@ -1411,7 +1222,6 @@ export default function MacedonianScrabble({
     return (
       <LeaderboardScreen
         leaderboard={leaderboard}
-        styles={S}
         onBack={() => setScreen("home")}
       />
     );
@@ -1422,7 +1232,6 @@ export default function MacedonianScrabble({
   if (screen === "setup") {
     return (
       <SetupScreen
-        styles={S}
         players={setupPlayers}
         setPlayers={setSetupPlayers}
         onBack={() => setScreen("home")}
@@ -1438,7 +1247,6 @@ export default function MacedonianScrabble({
       <GameOverScreen
         players={players}
         endBonuses={endBonuses}
-        styles={S}
         message={message}
         gameLog={gameLog}
         onNewGame={() => setScreen("setup")}
@@ -1454,7 +1262,7 @@ export default function MacedonianScrabble({
   // WAITING FOR CHALLENGE DECISION (multiplayer)
   // ═══════════════════════════════════════════
   if (screen === "waitingChallenge")
-    return <WaitingChallengeModal theme={S} message={message} />;
+    return <WaitingChallengeModal message={message} />;
 
   // ═══════════════════════════════════════════
   // MAIN GAME
@@ -1464,23 +1272,12 @@ export default function MacedonianScrabble({
 
   return (
     <div
-      className="game-screen"
-      style={{ ...S.page, padding: "6px 6px 0", minHeight: 0 }}
+      className="scrabble-page game-screen"
+      style={{ padding: "6px 6px 0", minHeight: 0 }}
     >
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap');
-        @keyframes aispin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
-        .board-cell:hover { outline: 1px solid rgba(45,60,45,0.8); outline-offset: -1px; z-index:1; }
-        .tile-rack:hover { transform: translateY(-4px) scale(1.05); box-shadow: 0 8px 20px rgba(99,102,241,0.4) !important; }
-        .action-btn:hover { opacity: 0.85; transform: translateY(-1px); }
-        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.3); border-radius: 2px; }
-      `}</style>
-
       {/* WORD INFO MODAL */}
       {wordInfoModal && (
         <WordInfoModal
-          theme={S}
           wordInfo={wordInfoModal}
           onClose={() => setWordInfoModal(null)}
         />
@@ -1488,11 +1285,7 @@ export default function MacedonianScrabble({
 
       {/* JOKER MODAL */}
       {jokerModal && (
-        <JokerModal
-          theme={S}
-          letters={MK_LETTERS.split("")}
-          onSelect={assignJoker}
-        />
+        <JokerModal letters={MK_LETTERS.split("")} onSelect={assignJoker} />
       )}
 
       {screen === "challenge" &&
@@ -1516,7 +1309,6 @@ export default function MacedonianScrabble({
 
           return (
             <ChallengeModal
-              theme={S}
               players={players}
               currentPlayer={currentPlayer}
               formedWords={formedWords}
@@ -1586,7 +1378,6 @@ export default function MacedonianScrabble({
                 players={players}
                 placedTiles={placedTiles}
                 turnScore={turnScore}
-                theme={S}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDropOnRack={handleDropOnRack}
@@ -1595,7 +1386,6 @@ export default function MacedonianScrabble({
                 onPassTurn={passTurn}
                 onExchangeTiles={exchangeTiles}
                 getDisplayLetter={getDisplayLetter}
-                tileStyle={tileStyle}
               />
             )}
 
@@ -1648,7 +1438,9 @@ export default function MacedonianScrabble({
                   +{turnScore}
                 </span>
                 {formedWords.length > 1 && (
-                  <span style={{ color: S.muted, fontSize: 10 }}>
+                  <span
+                    style={{ color: "var(--scrabble-muted)", fontSize: 10 }}
+                  >
                     ({formedWords.length} зборови)
                   </span>
                 )}
@@ -1676,7 +1468,13 @@ export default function MacedonianScrabble({
                 <span style={{ color: "#6366f1" }}>+{aiMoveDisplay.score}</span>
               </div>
               {aiMoveDisplay.explanation && (
-                <div style={{ color: S.muted, fontSize: 10, marginTop: 2 }}>
+                <div
+                  style={{
+                    color: "var(--scrabble-muted)",
+                    fontSize: 10,
+                    marginTop: 2,
+                  }}
+                >
                   {aiMoveDisplay.explanation}
                 </div>
               )}
