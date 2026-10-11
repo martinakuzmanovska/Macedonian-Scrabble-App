@@ -8,12 +8,12 @@ export function useGame() {
   const hasJoinParam = new URLSearchParams(window.location.search).has("join");
   if (hasJoinParam) sessionStorage.removeItem(SESSION_KEY);
 
-  const [gameId,    setGameId]    = useState(() =>
-    hasJoinParam ? null : sessionStorage.getItem(SESSION_KEY)
+  const [gameId, setGameId] = useState(() =>
+    hasJoinParam ? null : sessionStorage.getItem(SESSION_KEY),
   );
   const [gameState, setGameState] = useState(null);
-  const [loading,   setLoading]   = useState(false);
-  const [error,     setError]     = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   // On mount: if we have a saved gameId, reload it from the server
   useEffect(() => {
@@ -22,8 +22,8 @@ export function useGame() {
     if (!saved) return;
     setLoading(true);
     fetch(`/api/games/${saved}`, { credentials: "include" })
-      .then(r => r.json())
-      .then(data => {
+      .then((r) => r.json())
+      .then((data) => {
         if (data.success) {
           setGameState(data.state);
           setGameId(data.gameId);
@@ -44,11 +44,15 @@ export function useGame() {
     const res = await fetch(path, {
       ...options,
       credentials: "include",
-      headers: { "Content-Type": "application/json", ...(options.headers ?? {}) },
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers ?? {}),
+      },
       body: options.body ? JSON.stringify(options.body) : undefined,
     });
     const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data.error ?? "Request failed");
+    if (!res.ok || !data.success)
+      throw new Error(data.error ?? "Request failed");
     return data;
   }, []);
 
@@ -61,66 +65,83 @@ export function useGame() {
   }, []);
 
   // ── Create ───────────────────────────────────
-  const createGame = useCallback(async (players) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await apiFetch("/api/games", { method: "POST", body: { players } });
-      return handleResult(data);
-    } catch (err) {
-      setError(err.message);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, [apiFetch, handleResult]);
+  const createGame = useCallback(
+    async (players, gameMode = "classic") => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await apiFetch("/api/games", {
+          method: "POST",
+          body: { players, gameMode },
+        });
+        return handleResult(data);
+      } catch (err) {
+        setError(err.message);
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [apiFetch, handleResult],
+  );
 
   // ── Join ─────────────────────────────────────
-  const joinGame = useCallback(async (inviteGameId) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await apiFetch(`/api/games/${inviteGameId}/join`, { method: "POST" });
-      return handleResult(data);
-    } catch (err) {
-      setError(err.message);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, [apiFetch, handleResult]);
+  const joinGame = useCallback(
+    async (inviteGameId) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await apiFetch(`/api/games/${inviteGameId}/join`, {
+          method: "POST",
+        });
+        return handleResult(data);
+      } catch (err) {
+        setError(err.message);
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [apiFetch, handleResult],
+  );
 
   // ── Load ─────────────────────────────────────
-  const loadGame = useCallback(async (inviteGameId) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await apiFetch(`/api/games/${inviteGameId}`);
-      return handleResult(data);
-    } catch (err) {
-      setError(err.message);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, [apiFetch, handleResult]);
+  const loadGame = useCallback(
+    async (inviteGameId) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await apiFetch(`/api/games/${inviteGameId}`);
+        return handleResult(data);
+      } catch (err) {
+        setError(err.message);
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [apiFetch, handleResult],
+  );
 
   // ── Send action ──────────────────────────────
-  const sendAction = useCallback(async (action, payload = {}) => {
-    if (!gameId) return null;
-    setError(null);
-    try {
-      const data = await apiFetch(`/api/games/${gameId}/${action}`, {
-        method: "POST",
-        body: payload,
-      });
-      setGameState(data.state);
-      return data.state;
-    } catch (err) {
-      setError(err.message);
-      return null;
-    }
-  }, [gameId, apiFetch]);
+  const sendAction = useCallback(
+    async (action, payload = {}) => {
+      if (!gameId) return null;
+      setError(null);
+      try {
+        const data = await apiFetch(`/api/games/${gameId}/${action}`, {
+          method: "POST",
+          body: payload,
+        });
+        setGameState(data.state);
+        return data.state;
+      } catch (err) {
+        setError(err.message);
+        return null;
+      }
+    },
+    [gameId, apiFetch],
+  );
 
   // ── Clear ────────────────────────────────────
   const clearGame = useCallback(() => {

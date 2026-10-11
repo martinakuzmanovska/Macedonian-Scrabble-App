@@ -3,6 +3,7 @@ import "./HomePage.css";
 
 export default function HomePage({ onAction, loading = false, error = null }) {
   const [inviteCode, setInviteCode] = useState("");
+  const [gameMode, setGameMode] = useState("classic");
 
   const joinWithCode = (event) => {
     event.preventDefault();
@@ -48,24 +49,49 @@ export default function HomePage({ onAction, loading = false, error = null }) {
           </div>
 
           <div className="home-play-options">
-            <button
-              className="home-play-card"
-              type="button"
-              disabled={loading}
-              onClick={() => onAction({ type: "player" })}
-            >
-              <span className="home-play-icon" aria-hidden="true">
-                👥
-              </span>
-              <span className="home-play-title">Играј со играч</span>
-              <span className="home-play-description">
-                Создај игра и покани пријател со код.
-              </span>
-              <span className="home-play-cta">
-                {loading ? "Се подготвува..." : "Започни игра"}{" "}
-                <span aria-hidden="true">→</span>
-              </span>
-            </button>
+            <article className="home-play-card">
+              <button
+                className="home-play-card-action"
+                type="button"
+                disabled={loading}
+                onClick={() => onAction({ type: "player", gameMode })}
+              >
+                <span className="home-play-icon" aria-hidden="true">
+                  👥
+                </span>
+                <span className="home-play-title">Играј со играч</span>
+                <span className="home-play-description">
+                  Создај игра и покани пријател со код.
+                </span>
+                <span className="home-play-cta">
+                  {loading ? "Се подготвува..." : "Започни игра"}{" "}
+                  <span aria-hidden="true">→</span>
+                </span>
+              </button>
+              <fieldset className="home-game-mode">
+                <legend>Режим на игра</legend>
+                <label>
+                  <input
+                    type="radio"
+                    name="home-game-mode"
+                    value="classic"
+                    checked={gameMode === "classic"}
+                    onChange={() => setGameMode("classic")}
+                  />
+                  <span>Класична игра</span>
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="home-game-mode"
+                    value="bonus"
+                    checked={gameMode === "bonus"}
+                    onChange={() => setGameMode("bonus")}
+                  />
+                  <span>Игра со бонус прашања</span>
+                </label>
+              </fieldset>
+            </article>
 
             <button
               className="home-play-card home-play-card--ai"

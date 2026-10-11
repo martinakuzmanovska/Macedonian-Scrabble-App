@@ -246,7 +246,7 @@ export default function App() {
           ? { name: "🤖 AI", age: 25, type: "ai" }
           : { name: "Играч 2", age: 25, type: "human" },
       ];
-      void createGame(players);
+      void createGame(players, action.gameMode ?? "classic");
     },
     [createGame, joinGame, user],
   );

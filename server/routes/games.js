@@ -1,6 +1,7 @@
 import express from "express";
 import { requireAuth } from "../middleware/requireAuth.js";
 import Game from "../models/Game.js";
+import { generateBonusQuestion } from "../services/bonusQuestion.js";
 import {
   createGame,
   placeTileAction,
@@ -19,10 +20,59 @@ import {
 const router = express.Router();
 router.use(requireAuth);
 
+function getLongestFormedWord(formedWords) {
+  return (formedWords ?? [])
+    .map((formedWord) =>
+      typeof formedWord === "string" ? formedWord : formedWord?.word,
+    )
+    .filter((word) => typeof word === "string" && word.length > 0)
+    .reduce(
+      (longest, word) =>
+        Array.from(word).length > Array.from(longest).length ? word : longest,
+      "",
+    );
+}
+
+async function maybeBonus(game, newState, score, moverIndex, word) {
+  const hist = game.scoreHistory ?? [];
+  const average = 18;
+
+  newState.scoreHistory = [...hist, score];
+  if (game.gameMode !== "bonus" || score <= average || !word) {
+    console.info("[bonus-question] skipped", {
+      gameId: game.gameId,
+      gameMode: game.gameMode,
+      score,
+      threshold: average,
+      hasWord: Boolean(word),
+    });
+    return;
+  }
+
+  const question = await generateBonusQuestion(word);
+  if (question) {
+    newState.pendingBonus = { playerIndex: moverIndex, word, ...question };
+    console.info("[bonus-question] generated", {
+      gameId: game.gameId,
+      playerIndex: moverIndex,
+      word,
+      score,
+      question: question.question,
+      options: question.options,
+    });
+  } else {
+    console.warn("[bonus-question] no question generated", {
+      gameId: game.gameId,
+      word,
+      score,
+    });
+  }
+}
+
 // ── Create ────────────────────────────────────
 router.post("/", async (req, res) => {
   try {
-    const { players } = req.body;
+    const { players, gameMode } = req.body;
     if (!players?.length) {
       return res
         .status(400)
@@ -34,7 +84,7 @@ router.post("/", async (req, res) => {
       name: i === 0 ? req.user.displayName : p.name,
       avatar: i === 0 ? req.user.avatar : (p.avatar ?? null),
     }));
-    const doc = await createGame(req.user, setupPlayers);
+    const doc = await createGame(req.user, setupPlayers, gameMode);
     res.json({ success: true, gameId: doc.gameId, state: doc.toEngineState() });
   } catch (err) {
     console.error("createGame error:", err);
@@ -338,6 +388,13 @@ router.post("/:gameId/finalize", async (req, res) => {
       status: gameOver ? "gameOver" : "playing",
     };
 
+    await maybeBonus(
+      game,
+      newState,
+      score,
+      state.currentPlayerIndex,
+      getLongestFormedWord(state.formedWords),
+    );
     Object.assign(game, Game.fromEngineState(newState));
     await game.save();
     console.log(
@@ -371,14 +428,20 @@ router.post("/:gameId/ai-turn", async (req, res) => {
       (player) => player.userId?.toString() === req.user._id.toString(),
     );
     if (!isParticipant) {
-      return res.status(403).json({ success: false, error: "Not in this game" });
+      return res
+        .status(403)
+        .json({ success: false, error: "Not in this game" });
     }
     const currentPlayer = game.players[game.currentPlayerIndex];
     if (currentPlayer?.type !== "ai") {
-      return res.status(400).json({ success: false, error: "It is not an AI turn" });
+      return res
+        .status(400)
+        .json({ success: false, error: "It is not an AI turn" });
     }
     if (!pass && !Array.isArray(placements)) {
-      return res.status(400).json({ success: false, error: "placements array is required" });
+      return res
+        .status(400)
+        .json({ success: false, error: "placements array is required" });
     }
 
     const applied = pass
@@ -496,6 +559,13 @@ router.post("/:gameId/challenge-result", async (req, res) => {
         gameLog: newLog,
         status: "playing",
       };
+      await maybeBonus(
+        game,
+        newState,
+        score,
+        state.currentPlayerIndex,
+        getLongestFormedWord(state.formedWords),
+      );
       Object.assign(game, Game.fromEngineState(newState));
       await game.save();
       return res.json({

@@ -11,8 +11,16 @@
   overflow: hidden;
   padding: clamp(20px, 4vw, 40px);
   background:
-    radial-gradient(ellipse at 14% 15%, oklch(0.91 0.045 145 / 0.5), transparent 36%),
-    radial-gradient(ellipse at 88% 84%, oklch(0.93 0.055 90 / 0.48), transparent 34%),
+    radial-gradient(
+      ellipse at 14% 15%,
+      oklch(0.91 0.045 145 / 0.5),
+      transparent 36%
+    ),
+    radial-gradient(
+      ellipse at 88% 84%,
+      oklch(0.93 0.055 90 / 0.48),
+      transparent 34%
+    ),
     var(--app-background, #f5f7f3);
   color: var(--invite-ink);
 }
@@ -35,7 +43,11 @@
   padding: clamp(26px, 5vw, 42px);
   border: 1px solid var(--invite-border);
   border-radius: 20px;
-  background: color-mix(in oklch, var(--card, #fff) 95%, var(--secondary, #f0f3ed));
+  background: color-mix(
+    in oklch,
+    var(--card, #fff) 95%,
+    var(--secondary, #f0f3ed)
+  );
   box-shadow: 0 20px 54px oklch(0.3 0.03 150 / 0.1);
   text-align: center;
   animation: invite-appear 0.3s ease both;
@@ -77,12 +89,16 @@
   font-size: clamp(28px, 7vw, 40px);
   font-weight: 700;
   letter-spacing: 0.22em;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .invite-code:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 0 var(--tile-edge), 0 12px 20px oklch(0.3 0.03 150 / 0.12);
+  box-shadow:
+    0 6px 0 var(--tile-edge),
+    0 12px 20px oklch(0.3 0.03 150 / 0.12);
 }
 
 .invite-code:focus-visible,
@@ -112,7 +128,9 @@
   font: inherit;
   font-size: 12px;
   font-weight: 700;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .invite-share-button:hover {
@@ -143,7 +161,9 @@
   border: 1px dashed var(--invite-border);
   border-radius: 10px;
   background: color-mix(in oklch, var(--card) 76%, var(--secondary));
-  transition: background 0.2s ease, border-color 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .invite-player-row--joined {
@@ -190,7 +210,8 @@
   height: 8px;
   border-radius: 50%;
   background: var(--invite-primary);
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--invite-primary) 14%, transparent);
+  box-shadow: 0 0 0 3px
+    color-mix(in oklch, var(--invite-primary) 14%, transparent);
 }
 
 .invite-start-button {
@@ -205,7 +226,9 @@
   font: inherit;
   font-size: 14px;
   font-weight: 800;
-  transition: transform 0.15s ease, background 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
 }
 
 .invite-start-button:hover {

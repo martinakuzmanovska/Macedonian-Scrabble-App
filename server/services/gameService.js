@@ -38,9 +38,15 @@ import {
  * @param {Array}  setupPlayers  — [{ name, age, type, userId? }]
  *   For human slots: include userId.
  *   For AI slots: type = 'ai', no userId needed.
+ * @param {string} gameMode      — 'classic' or 'bonus'
  * @returns {Game} the saved Mongoose document
  */
-export async function createGame(creatorUser, setupPlayers) {
+export async function createGame(
+  creatorUser,
+  setupPlayers,
+  gameMode = "classic",
+) {
+  const normalizedGameMode = gameMode === "bonus" ? "bonus" : "classic";
   const gameId = nanoid(6); // e.g. "xK9mQ2"
 
   // Build the initial engine state
@@ -49,21 +55,26 @@ export async function createGame(creatorUser, setupPlayers) {
   // Attach real user IDs to human player slots
   const playersWithIds = engineState.players.map((p, i) => ({
     ...p,
-    userId:      setupPlayers[i]?.userId ?? null,
-    displayName: setupPlayers[i]?.name   ?? p.name,
-    avatar:      setupPlayers[i]?.avatar ?? null,
+    userId: setupPlayers[i]?.userId ?? null,
+    displayName: setupPlayers[i]?.name ?? p.name,
+    avatar: setupPlayers[i]?.avatar ?? null,
   }));
 
   // If every player is either AI or already has a userId, start immediately
-  const allReady = playersWithIds.every(p => p.type === "ai" || p.userId);
-  const status   = allReady ? "playing" : "waiting";
+  const allReady = playersWithIds.every((p) => p.type === "ai" || p.userId);
+  const status = allReady ? "playing" : "waiting";
 
   const doc = new Game({
     gameId,
     createdBy: creatorUser._id,
-    ...Game.fromEngineState(
-      { ...engineState, players: playersWithIds, status }
-    ),
+    ...Game.fromEngineState({
+      ...engineState,
+      players: playersWithIds,
+      status,
+      gameMode: normalizedGameMode,
+      scoreHistory: [],
+      pendingBonus: null,
+    }),
   });
 
   await doc.save();
@@ -80,30 +91,28 @@ export async function createGame(creatorUser, setupPlayers) {
  */
 export async function joinGame(gameId, user) {
   const doc = await Game.findOne({ gameId });
-  if (!doc)                       return "Game not found.";
-  if (doc.status !== "waiting")   return "Game has already started.";
+  if (!doc) return "Game not found.";
+  if (doc.status !== "waiting") return "Game has already started.";
 
   // Find the first human slot with no userId assigned yet
   // (slot 0 is always the creator, so start from 1)
   const slotIndex = doc.players.findIndex(
-    (p, i) => i > 0 && p.type === "human" && !p.userId
+    (p, i) => i > 0 && p.type === "human" && !p.userId,
   );
   if (slotIndex === -1) return "Game is full.";
 
   // Make sure this user isn't already in the game
   const alreadyIn = doc.players.some(
-    p => p.userId && p.userId.toString() === user._id.toString()
+    (p) => p.userId && p.userId.toString() === user._id.toString(),
   );
   if (alreadyIn) return "You are already in this game.";
 
-  doc.players[slotIndex].userId      = user._id;
+  doc.players[slotIndex].userId = user._id;
   doc.players[slotIndex].displayName = user.displayName;
-  doc.players[slotIndex].avatar      = user.avatar;
+  doc.players[slotIndex].avatar = user.avatar;
 
   // If all human slots are filled, start the game
-  const allFilled = doc.players.every(
-    p => p.type === "ai" || p.userId
-  );
+  const allFilled = doc.players.every((p) => p.type === "ai" || p.userId);
   if (allFilled) doc.status = "playing";
 
   doc.updatedAt = new Date();
@@ -168,17 +177,24 @@ async function withGame(gameId, userId, fn) {
   return { doc, state: newState };
 }
 
-export const placeTileAction = (gameId, userId, row, col, tile, displayLetter) =>
-  withGame(gameId, userId, s => placeTile(s, row, col, tile, displayLetter));
+export const placeTileAction = (
+  gameId,
+  userId,
+  row,
+  col,
+  tile,
+  displayLetter,
+) =>
+  withGame(gameId, userId, (s) => placeTile(s, row, col, tile, displayLetter));
 
 export const removeTileAction = (gameId, userId, row, col) =>
-  withGame(gameId, userId, s => removePlacedTile(s, row, col));
+  withGame(gameId, userId, (s) => removePlacedTile(s, row, col));
 
 export const assignJokerAction = (gameId, userId, tileId, letter) =>
-  withGame(gameId, userId, s => assignJoker(s, tileId, letter));
+  withGame(gameId, userId, (s) => assignJoker(s, tileId, letter));
 
 export const confirmPlacementAction = (gameId, userId) =>
-  withGame(gameId, userId, s => {
+  withGame(gameId, userId, (s) => {
     const err = validatePlacement(s);
     if (err) return err;
     // Move to challenge phase — finalizeTurn is called after challenge resolves
@@ -186,16 +202,16 @@ export const confirmPlacementAction = (gameId, userId) =>
   });
 
 export const finalizeTurnAction = (gameId, userId) =>
-  withGame(gameId, userId, s => advanceTurn(finalizeTurn(s), false));
+  withGame(gameId, userId, (s) => advanceTurn(finalizeTurn(s), false));
 
 export const passTurnAction = (gameId, userId) =>
-  withGame(gameId, userId, s => passTurn(s));
+  withGame(gameId, userId, (s) => passTurn(s));
 
 export const exchangeTilesAction = (gameId, userId) =>
-  withGame(gameId, userId, s => exchangeTiles(s)); // returns error string if invalid
+  withGame(gameId, userId, (s) => exchangeTiles(s)); // returns error string if invalid
 
 export const challengeResultAction = (gameId, userId, isValid) =>
-  withGame(gameId, userId, s => {
+  withGame(gameId, userId, (s) => {
     const afterChallenge = applyChallengeResult(s, isValid);
     if (isValid) {
       return advanceTurn(finalizeTurn(afterChallenge), false);
@@ -205,13 +221,13 @@ export const challengeResultAction = (gameId, userId, isValid) =>
   });
 
 export const applyAIMoveAction = (gameId, placements) =>
-  withGame(gameId, "server", s => applyAIMove(s, placements));
+  withGame(gameId, "server", (s) => applyAIMove(s, placements));
 
 export const finalizeAITurnAction = (gameId) =>
-  withGame(gameId, "server", s => advanceTurn(finalizeTurn(s), false));
+  withGame(gameId, "server", (s) => advanceTurn(finalizeTurn(s), false));
 
 export const passAITurnAction = (gameId) =>
-  withGame(gameId, "server", s => {
+  withGame(gameId, "server", (s) => {
     const logEntry = `${s.players[s.currentPlayerIndex].displayName}: пас (AI)`;
     return advanceTurn({ ...s, gameLog: [...s.gameLog, logEntry] }, true);
   });

@@ -12,6 +12,7 @@ export default function Lobby({
 }) {
   const [tab, setTab] = useState("create");
   const [inviteCode, setInviteCode] = useState("");
+  const [gameMode, setGameMode] = useState("classic");
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [leaderboard, setLeaderboard] = useState([]);
   const [extraPlayers, setExtraPlayers] = useState([
@@ -42,7 +43,7 @@ export default function Lobby({
       },
       ...extraPlayers,
     ];
-    onCreate(players);
+    onCreate(players, gameMode);
   };
 
   const handleJoin = () => {
@@ -595,6 +596,32 @@ export default function Lobby({
               >
                 {error}
               </div>
+            )}
+
+            {extraPlayers.some((player) => player.type === "human") && (
+              <fieldset className="lobby-game-mode">
+                <legend>Режим на игра</legend>
+                <label>
+                  <input
+                    type="radio"
+                    name="lobby-game-mode"
+                    value="classic"
+                    checked={gameMode === "classic"}
+                    onChange={() => setGameMode("classic")}
+                  />
+                  <span>Класична игра</span>
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="lobby-game-mode"
+                    value="bonus"
+                    checked={gameMode === "bonus"}
+                    onChange={() => setGameMode("bonus")}
+                  />
+                  <span>Игра со бонус прашања</span>
+                </label>
+              </fieldset>
             )}
 
             <button

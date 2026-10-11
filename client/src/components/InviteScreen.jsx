@@ -14,7 +14,9 @@ export default function InviteScreen({
 
   function isReady(state) {
     if (!state?.players?.length) return false;
-    return state.players.every((player) => player.type === "ai" || player.userId);
+    return state.players.every(
+      (player) => player.type === "ai" || player.userId,
+    );
   }
 
   useEffect(() => {
@@ -112,11 +114,12 @@ export default function InviteScreen({
                   {player.type === "ai" ? "🤖" : joined ? "✅" : "⏳"}
                 </span>
                 <span className="invite-player-name">{playerName}</span>
-                {index === 0 && (
-                  <span className="invite-player-label">ТИ</span>
-                )}
+                {index === 0 && <span className="invite-player-label">ТИ</span>}
                 {joined && index !== 0 && (
-                  <span className="invite-player-status" aria-label="Приклучен" />
+                  <span
+                    className="invite-player-status"
+                    aria-label="Приклучен"
+                  />
                 )}
               </div>
             );
