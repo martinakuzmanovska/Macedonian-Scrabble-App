@@ -20,6 +20,14 @@ import {
 const router = express.Router();
 router.use(requireAuth);
 
+function safeState(state) {
+  if (!state?.pendingBonus) return state;
+
+  const publicBonus = { ...state.pendingBonus };
+  delete publicBonus.correctIndex;
+  return { ...state, pendingBonus: publicBonus };
+}
+
 function getLongestFormedWord(formedWords) {
   return (formedWords ?? [])
     .map((formedWord) =>
@@ -85,7 +93,11 @@ router.post("/", async (req, res) => {
       avatar: i === 0 ? req.user.avatar : (p.avatar ?? null),
     }));
     const doc = await createGame(req.user, setupPlayers, gameMode);
-    res.json({ success: true, gameId: doc.gameId, state: doc.toEngineState() });
+    res.json({
+      success: true,
+      gameId: doc.gameId,
+      state: safeState(doc.toEngineState()),
+    });
   } catch (err) {
     console.error("createGame error:", err);
     res.status(500).json({ success: false, error: "Failed to create game" });
@@ -109,7 +121,7 @@ router.post("/:gameId/join", async (req, res) => {
       return res.json({
         success: true,
         gameId: game.gameId,
-        state: game.toEngineState(),
+        state: safeState(game.toEngineState()),
       });
     }
 
@@ -141,7 +153,7 @@ router.post("/:gameId/join", async (req, res) => {
     res.json({
       success: true,
       gameId: game.gameId,
-      state: game.toEngineState(),
+      state: safeState(game.toEngineState()),
     });
   } catch (err) {
     console.error("joinGame error:", err);
@@ -166,7 +178,7 @@ router.get("/:gameId", async (req, res) => {
         .json({ success: false, error: "Not in this game" });
     }
 
-    const state = game.toEngineState();
+    const state = safeState(game.toEngineState());
     res.json({ success: true, gameId: game.gameId, state });
   } catch (err) {
     console.error("loadGame error:", err);
@@ -196,7 +208,7 @@ async function handleAction(res, actionPromise) {
     const result = await actionPromise;
     if (typeof result === "string")
       return res.status(400).json({ success: false, error: result });
-    res.json({ success: true, state: result.state });
+    res.json({ success: true, state: safeState(result.state) });
   } catch (err) {
     console.error("action error:", err);
     res.status(500).json({ success: false, error: "Action failed" });
@@ -275,7 +287,7 @@ router.post("/:gameId/confirm", async (req, res) => {
       return res.json({
         success: true,
         gameId: req.params.gameId,
-        state: finalized.state,
+        state: safeState(finalized.state),
       });
     }
 
@@ -285,7 +297,7 @@ router.post("/:gameId/confirm", async (req, res) => {
     res.json({
       success: true,
       gameId: game.gameId,
-      state: game.toEngineState(),
+      state: safeState(game.toEngineState()),
     });
   } catch (err) {
     console.error("confirm error:", err);
@@ -403,7 +415,7 @@ router.post("/:gameId/finalize", async (req, res) => {
     res.json({
       success: true,
       gameId: game.gameId,
-      state: game.toEngineState(),
+      state: safeState(game.toEngineState()),
     });
   } catch (err) {
     console.error("finalize error:", err);
@@ -457,11 +469,19 @@ router.post("/:gameId/ai-turn", async (req, res) => {
       if (typeof skipped === "string") {
         return res.status(400).json({ success: false, error: skipped });
       }
-      return res.json({ success: true, state: skipped.state, passed: true });
+      return res.json({
+        success: true,
+        state: safeState(skipped.state),
+        passed: true,
+      });
     }
 
     if (pass) {
-      return res.json({ success: true, state: applied.state, passed: true });
+      return res.json({
+        success: true,
+        state: safeState(applied.state),
+        passed: true,
+      });
     }
 
     const finalized = await finalizeAITurnAction(req.params.gameId);
@@ -471,7 +491,7 @@ router.post("/:gameId/ai-turn", async (req, res) => {
 
     return res.json({
       success: true,
-      state: finalized.state,
+      state: safeState(finalized.state),
       score: applied.state.turnScore,
       words: applied.state.formedWords,
     });
@@ -571,7 +591,7 @@ router.post("/:gameId/challenge-result", async (req, res) => {
       return res.json({
         success: true,
         gameId: game.gameId,
-        state: game.toEngineState(),
+        state: safeState(game.toEngineState()),
       });
     } else {
       // Word is NOT valid — return tiles to Player 1's rack, reset board to confirmed
@@ -607,12 +627,86 @@ router.post("/:gameId/challenge-result", async (req, res) => {
       return res.json({
         success: true,
         gameId: game.gameId,
-        state: game.toEngineState(),
+        state: safeState(game.toEngineState()),
       });
     }
   } catch (err) {
     console.error("challenge-result error:", err);
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post("/:gameId/bonus-answer", async (req, res) => {
+  try {
+    const game = await Game.findOne({ gameId: req.params.gameId });
+    if (!game) {
+      return res.status(404).json({ success: false, error: "Game not found" });
+    }
+
+    const state = game.toEngineState();
+    const pendingBonus = state.pendingBonus;
+    if (!pendingBonus) {
+      return res
+        .status(400)
+        .json({ success: false, error: "There is no pending bonus question" });
+    }
+
+    const player = game.players[pendingBonus.playerIndex];
+    if (
+      !player?.userId ||
+      player.userId.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({ success: false, error: "Not your bonus" });
+    }
+
+    const { choice } = req.body;
+    if (choice === -1) {
+      game.gameLog.push(
+        `${player.displayName}: бонус прашање за „${pendingBonus.word}“ — откажано`,
+      );
+      game.pendingBonus = null;
+      game.markModified("pendingBonus");
+      await game.save();
+
+      return res.json({
+        success: true,
+        correct: false,
+        correctIndex: pendingBonus.correctIndex,
+        declined: true,
+        state: safeState(game.toEngineState()),
+      });
+    }
+
+    if (
+      !Number.isInteger(choice) ||
+      choice < 0 ||
+      choice >= pendingBonus.options?.length
+    ) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Invalid answer choice" });
+    }
+
+    const correct = choice === pendingBonus.correctIndex;
+    if (correct) player.score = (player.score ?? 0) + 5;
+
+    game.gameLog.push(
+      `${player.displayName}: бонус прашање за „${pendingBonus.word}“ — ${correct ? "точен одговор (+5)" : "погрешен одговор"}`,
+    );
+    game.pendingBonus = null;
+    game.markModified("pendingBonus");
+    await game.save();
+
+    return res.json({
+      success: true,
+      correct,
+      correctIndex: pendingBonus.correctIndex,
+      declined: false,
+      state: safeState(game.toEngineState()),
+    });
+  } catch (err) {
+    console.error("bonus-answer error:", err);
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 

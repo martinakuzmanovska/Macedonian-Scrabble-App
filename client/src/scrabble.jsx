@@ -69,6 +69,8 @@ export default function MacedonianScrabble({
     return cp ? `${cp.displayName || cp.name} — твој ред!` : "";
   });
   const [challengeResult, setChallengeResult] = useState(null);
+  const [bonusQuestion, setBonusQuestion] = useState(null);
+  const [bonusResult, setBonusResult] = useState(null);
   const [isValidating, setIsValidating] = useState(false);
   const [jokerModal, setJokerModal] = useState(null);
   const [jokerAssignments, setJokerAssignments] = useState(
@@ -236,6 +238,8 @@ export default function MacedonianScrabble({
       const myIdx = normalizedPlayers.findIndex(
         (p) => p.userId?.toString() === myUid.toString(),
       );
+      const pb = s.pendingBonus;
+      setBonusQuestion(pb && myIdx === pb.playerIndex ? pb : null);
       const iAmCurrentPlayer = myIdx === (s.currentPlayerIndex ?? 0);
 
       if (s.status === "challenge" && !iAmCurrentPlayer) {
@@ -801,6 +805,55 @@ export default function MacedonianScrabble({
     }
   };
 
+  const answerBonus = async (choice) => {
+    if (!hasServerGame || !initialGameState?.gameId || !bonusQuestion) return;
+
+    try {
+      const res = await fetch(
+        `/api/games/${initialGameState.gameId}/bonus-answer`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ choice }),
+        },
+      );
+      const data = await res.json();
+      if (!data.success) {
+        setBonusResult({
+          correct: false,
+          selectedChoice: choice,
+          declined: choice === -1,
+          message: data.error || "Неуспешен одговор.",
+        });
+        return;
+      }
+
+      setBonusResult({
+        correct: Boolean(data.correct),
+        correctIndex: data.correctIndex,
+        selectedChoice: choice,
+        declined: choice === -1,
+      });
+      setBonusQuestion(null);
+      if (data.correct) {
+        setMessage(`✅ Точен одговор! +5 п.`);
+      } else if (choice === -1) {
+        setMessage("ℹ️ Откажавте се од бонус прашањето.");
+      } else {
+        setMessage(`❌ Погрешен одговор. Точниот е ${data.correctIndex + 1}.`);
+      }
+    } catch (err) {
+      console.error("Bonus answer error:", err);
+      setBonusResult({
+        correct: false,
+        selectedChoice: choice,
+        declined: choice === -1,
+        message: "Грешка при испраќање на одговорот.",
+      });
+    }
+  };
+
   const requestWordInfo = async (word) => {
     setIsLoadingInfo(true);
     const info = await getWordInfo(word);
@@ -1286,6 +1339,186 @@ export default function MacedonianScrabble({
       {/* JOKER MODAL */}
       {jokerModal && (
         <JokerModal letters={MK_LETTERS.split("")} onSelect={assignJoker} />
+      )}
+
+      {/* BONUS QUESTION MODAL */}
+      {bonusQuestion && !bonusResult && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            background: "rgba(41, 43, 41, 0.16)",
+            backdropFilter: "blur(5px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: 18,
+              boxShadow: "var(--surface-shadow)",
+              padding: 28,
+              maxWidth: 460,
+              width: "100%",
+              color: "var(--foreground)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10,
+                color: "var(--primary)",
+                letterSpacing: 3,
+                fontWeight: 800,
+                marginBottom: 8,
+                textAlign: "center",
+                textTransform: "uppercase",
+              }}
+            >
+              BONUS ПРАШАЊЕ
+            </div>
+            <h3
+              style={{
+                color: "var(--foreground)",
+                margin: "0 0 18px",
+                textAlign: "center",
+                fontSize: 18,
+                fontWeight: 700,
+              }}
+            >
+              {bonusQuestion.question}
+            </h3>
+            <div
+              style={{
+                display: "grid",
+                gap: 10,
+                marginBottom: 18,
+              }}
+            >
+              {bonusQuestion.options?.map((option, index) => (
+                <button
+                  key={`${option}-${index}`}
+                  onClick={() => answerBonus(index)}
+                  style={{
+                    width: "100%",
+                    background: "var(--muted)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 10,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: "var(--foreground)",
+                    cursor: "pointer",
+                    padding: "12px 14px",
+                    textAlign: "left",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {index + 1}. {option}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <button
+                onClick={() => answerBonus(-1)}
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--border)",
+                  borderRadius: 10,
+                  color: "var(--foreground)",
+                  fontFamily: "inherit",
+                  fontWeight: 600,
+                  padding: "10px 18px",
+                  cursor: "pointer",
+                }}
+              >
+                Откажи
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bonusResult && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            background: "rgba(41, 43, 41, 0.16)",
+            backdropFilter: "blur(5px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: 18,
+              boxShadow: "var(--surface-shadow)",
+              padding: 28,
+              maxWidth: 420,
+              width: "100%",
+              color: "var(--foreground)",
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 24,
+                marginBottom: 12,
+                lineHeight: 1,
+              }}
+            >
+              {bonusResult.correct ? "✅" : "❌"}
+            </div>
+            <h3
+              style={{
+                margin: "0 0 10px",
+                fontSize: 18,
+                fontWeight: 700,
+                color: "var(--foreground)",
+              }}
+            >
+              {bonusResult.correct
+                ? `Точен одговор! +5 п.`
+                : bonusResult.declined
+                  ? "Откажано."
+                  : "Погрешен одговор."}
+            </h3>
+            <div style={{ color: "var(--muted-foreground)", marginBottom: 18 }}>
+              {bonusResult.message ||
+                (bonusResult.correct
+                  ? "Бонусот е додаден на вашите поени."
+                  : bonusResult.declined
+                    ? "Не добивте бонус поени."
+                    : `Точниот одговор е ${bonusResult.correctIndex + 1}.`)}
+            </div>
+            <button
+              onClick={() => {
+                setBonusResult(null);
+              }}
+              style={{
+                background: "var(--primary)",
+                border: "none",
+                borderRadius: 10,
+                color: "#fff",
+                fontFamily: "inherit",
+                fontWeight: 700,
+                padding: "10px 18px",
+                cursor: "pointer",
+              }}
+            >
+              Затвори
+            </button>
+          </div>
+        </div>
       )}
 
       {screen === "challenge" &&
