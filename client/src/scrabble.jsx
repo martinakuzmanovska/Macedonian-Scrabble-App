@@ -861,26 +861,6 @@ export default function MacedonianScrabble({
     setIsLoadingInfo(false);
   };
 
-  const returnTilesToRack = () => {
-    const nb = board.map((r) => [...r]);
-    const np = [...players];
-    const ret = [];
-    for (const p of placedTiles) {
-      nb[p.row][p.col] = null;
-      ret.push(p.tile);
-    }
-    np[currentPlayer] = {
-      ...np[currentPlayer],
-      rack: [...np[currentPlayer].rack, ...ret],
-    };
-    setBoard(nb);
-    setPlayers(np);
-    setPlacedTiles([]);
-    setFormedWords([]);
-    setTurnScore(0);
-    isPlacingRef.current = false;
-  };
-
   const finalizeTurn = async () => {
     console.log(
       "finalizeTurn called, hasServerGame:",
@@ -1028,10 +1008,71 @@ export default function MacedonianScrabble({
     }
   };
 
-  const passTurn = () => {
+  const passTurn = async () => {
+    if (hasServerGame && initialGameState?.gameId) {
+      try {
+        setMessage("⏳ Пасување...");
+        const res = await fetch(`/api/games/${initialGameState.gameId}/pass`, {
+          method: "POST",
+          credentials: "include",
+        });
+        const data = await res.json();
+        if (!data.success) {
+          setMessage(`⚠️ Грешка: ${data.error || "Пасувањето не успеа."}`);
+          return;
+        }
+
+        const state = data.state;
+        const normalizedPlayers = (state.players ?? []).map((player) => ({
+          ...player,
+          name: player.displayName || player.name || "Играч",
+        }));
+        setPlayers(normalizedPlayers);
+        setCurrentPlayer(state.currentPlayerIndex ?? 0);
+        setBoard(state.board ?? createEmptyBoard());
+        setConfirmedBoard(state.confirmedBoard ?? createEmptyBoard());
+        setTileBag(state.tileBag ?? []);
+        setGameLog(state.gameLog ?? []);
+        setIsFirstMove(state.isFirstMove ?? false);
+        setConsecutivePasses(state.consecutivePasses ?? 0);
+        setJokerAssignments(state.jokerAssignments ?? {});
+        setPlacedTiles([]);
+        setFormedWords([]);
+        setTurnScore(0);
+        setSelectedTile(null);
+        setDraggedTile(null);
+        isPlacingRef.current = false;
+
+        if (state.status === "gameOver") {
+          setScreen("gameOver");
+          return;
+        }
+
+        const nextPlayer = normalizedPlayers[state.currentPlayerIndex ?? 0];
+        setMessage(nextPlayer ? `${nextPlayer.name} — твој ред!` : "");
+        setScreen("playing");
+      } catch (err) {
+        console.error("Pass turn server error:", err);
+        setMessage("⚠️ Грешка при пасување.");
+      }
+      return;
+    }
+
+    const returnedTiles = placedTiles.map((placed) => placed.tile);
+    const updatedPlayers = [...players];
+    updatedPlayers[currentPlayer] = {
+      ...updatedPlayers[currentPlayer],
+      rack: [...updatedPlayers[currentPlayer].rack, ...returnedTiles],
+    };
+    const restoredBoard = confirmedBoard.map((row) =>
+      row.map((cell) => (cell ? { ...cell } : null)),
+    );
+
     addLog(`${players[currentPlayer].name}: пас`);
-    returnTilesToRack();
-    endTurn(true);
+    setPlayers(updatedPlayers);
+    setBoard(restoredBoard);
+    isPlacingRef.current = false;
+    endTurn(true, updatedPlayers, restoredBoard);
   };
   const exchangeTiles = () => {
     if (placedTiles.length > 0) {
