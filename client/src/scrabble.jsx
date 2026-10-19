@@ -17,6 +17,7 @@ import { MK_LETTERS, BONUS_MAP, getPoints } from "./game/constants";
 import {
   createTileBag,
   drawTiles,
+  returnTilesToBag,
   createEmptyBoard,
 } from "./game/gameState.js";
 
@@ -970,14 +971,15 @@ export default function MacedonianScrabble({
     endTurn(false, np, newConf);
   };
 
-  const endTurn = (wasSkip, updatedPlayers, newConf) => {
+  const endTurn = (wasSkip, updatedPlayers, newConf, updatedTileBag) => {
     const pls = updatedPlayers || players;
     const conf = newConf || confirmedBoard;
+    const bag = updatedTileBag || tileBag;
     setPlacedTiles([]);
     setFormedWords([]);
     setTurnScore(0);
     setSelectedTile(null);
-    if (tileBag.length === 0 && pls[currentPlayer].rack.length === 0) {
+    if (bag.length === 0 && pls[currentPlayer].rack.length === 0) {
       endGame(pls);
       return;
     }
@@ -1004,7 +1006,7 @@ export default function MacedonianScrabble({
     setScreen("playing");
     if (npArr[next].type === "ai") {
       const fm = isFirstMove;
-      setTimeout(() => triggerAIMove(npArr, next, conf, tileBag, fm), 800);
+      setTimeout(() => triggerAIMove(npArr, next, conf, bag, fm), 800);
     }
   };
 
@@ -1074,7 +1076,7 @@ export default function MacedonianScrabble({
     isPlacingRef.current = false;
     endTurn(true, updatedPlayers, restoredBoard);
   };
-  const exchangeTiles = () => {
+  const exchangeTiles = async () => {
     if (placedTiles.length > 0) {
       setMessage(
         "Замена е дозволена само ПРЕД да поставиш букви! Врати ги прво.",
@@ -1091,26 +1093,77 @@ export default function MacedonianScrabble({
       setMessage("Нема доволно плочки во кесата.");
       return;
     }
+
+    if (hasServerGame && initialGameState?.gameId) {
+      try {
+        setMessage("⏳ Се заменуваат буквите...");
+        const res = await fetch(
+          `/api/games/${initialGameState.gameId}/exchange`,
+          {
+            method: "POST",
+            credentials: "include",
+          },
+        );
+        const data = await res.json();
+        if (!data.success) {
+          setMessage(`⚠️ Грешка: ${data.error || "Замената не успеа."}`);
+          return;
+        }
+
+        const state = data.state;
+        const normalizedPlayers = (state.players ?? []).map((player) => ({
+          ...player,
+          name: player.displayName || player.name || "Играч",
+        }));
+        setPlayers(normalizedPlayers);
+        setCurrentPlayer(state.currentPlayerIndex ?? 0);
+        setTileBag(state.tileBag ?? []);
+        setGameLog(state.gameLog ?? []);
+        setConsecutivePasses(state.consecutivePasses ?? 0);
+        setSelectedTile(null);
+        setDraggedTile(null);
+        if (state.status === "gameOver") {
+          setScreen("gameOver");
+          return;
+        }
+
+        const nextIndex = state.currentPlayerIndex ?? 0;
+        const nextPlayer = normalizedPlayers[nextIndex];
+        setMessage(nextPlayer ? `${nextPlayer.name} — твој ред!` : "");
+        setScreen("playing");
+        if (nextPlayer?.type === "ai") {
+          setTimeout(
+            () =>
+              triggerAIMove(
+                normalizedPlayers,
+                nextIndex,
+                state.confirmedBoard ?? confirmedBoard,
+                state.tileBag ?? [],
+                state.isFirstMove ?? isFirstMove,
+              ),
+            800,
+          );
+        }
+      } catch (err) {
+        console.error("Exchange tiles server error:", err);
+        setMessage("⚠️ Грешка при замена на буквите.");
+      }
+      return;
+    }
+
     const np = [...players];
     const old = [...np[currentPlayer].rack];
     np[currentPlayer] = {
       ...np[currentPlayer],
       score: np[currentPlayer].score - 5,
     };
-    const newT = drawTiles(tileBag, old.length);
-    tileBag.push(...old);
-    for (let i = tileBag.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [tileBag[i], tileBag[j]] = [tileBag[j], tileBag[i]];
-    }
-    np[currentPlayer] = { ...np[currentPlayer], rack: newT };
+    const { drawn, remainingBag } = drawTiles(tileBag, old.length);
+    const newBag = returnTilesToBag(remainingBag, old);
+    np[currentPlayer] = { ...np[currentPlayer], rack: drawn };
     setPlayers(np);
-    setTileBag([...tileBag]);
+    setTileBag(newBag);
     addLog(`${players[currentPlayer].name}: замена (-5 п.)`);
-    setMessage(
-      `${players[currentPlayer].name} замени букви (-5 поени). Сега постави збор.`,
-    );
-    // Does NOT end turn — player continues with new tiles
+    endTurn(true, np, confirmedBoard, newBag);
   };
 
   const endGame = async (pls) => {

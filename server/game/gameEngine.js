@@ -12,8 +12,8 @@
 // for all game rules.
 // ═══════════════════════════════════════════
 
-import { BONUS_MAP, getPoints } from './constants.js';
-import { drawTiles, returnTilesToBag, createEmptyBoard } from './gameState.js';
+import { BONUS_MAP, getPoints } from "./constants.js";
+import { drawTiles, returnTilesToBag, createEmptyBoard } from "./gameState.js";
 
 // ─── Board helpers ──────────────────────────
 
@@ -33,7 +33,7 @@ function getLetter(board, row, col) {
  * Tiles themselves are not cloned — they are treated as immutable value objects.
  */
 function cloneBoard(board) {
-  return board.map(row => [...row]);
+  return board.map((row) => [...row]);
 }
 
 // ─── Word detection ─────────────────────────
@@ -52,13 +52,18 @@ export function findFormedWords(board, placedTiles) {
 
   const extractWord = (startRow, startCol, dr, dc) => {
     // Walk to the beginning of the word
-    let sr = startRow, sc = startCol;
-    while (getLetter(board, sr - dr, sc - dc)) { sr -= dr; sc -= dc; }
+    let sr = startRow,
+      sc = startCol;
+    while (getLetter(board, sr - dr, sc - dc)) {
+      sr -= dr;
+      sc -= dc;
+    }
 
     // Walk forward collecting letters
-    let word = '';
+    let word = "";
     const cells = [];
-    let cr = sr, cc = sc;
+    let cr = sr,
+      cc = sc;
     while (getLetter(board, cr, cc)) {
       word += getLetter(board, cr, cc);
       cells.push({ row: cr, col: cc });
@@ -103,7 +108,7 @@ export function calcScore(board, placedTiles, confirmedBoard) {
   const words = findFormedWords(board, placedTiles);
 
   // Set of "row-col" keys that are newly placed this turn
-  const newlyPlaced = new Set(placedTiles.map(p => `${p.row}-${p.col}`));
+  const newlyPlaced = new Set(placedTiles.map((p) => `${p.row}-${p.col}`));
 
   let total = 0;
   for (const w of words) {
@@ -114,19 +119,20 @@ export function calcScore(board, placedTiles, confirmedBoard) {
       const tile = board[cell.row]?.[cell.col];
       if (!tile) continue;
 
-      let letterPoints = tile.letter === '★' ? 0 : getPoints(tile.letter);
+      let letterPoints = tile.letter === "★" ? 0 : getPoints(tile.letter);
 
       // Only apply bonus if this tile was placed THIS turn
       // (confirmed tiles have already had their bonuses applied)
-      const isNew = newlyPlaced.has(`${cell.row}-${cell.col}`)
-        && !confirmedBoard[cell.row][cell.col];
+      const isNew =
+        newlyPlaced.has(`${cell.row}-${cell.col}`) &&
+        !confirmedBoard[cell.row][cell.col];
 
       if (isNew) {
         const bonus = BONUS_MAP[cell.row][cell.col];
-        if      (bonus === 'TL')              letterPoints *= 3;
-        else if (bonus === 'DL')              letterPoints *= 2;
-        else if (bonus === 'TW')              wordMultiplier *= 3;
-        else if (bonus === 'DW' || bonus === 'ST') wordMultiplier *= 2;
+        if (bonus === "TL") letterPoints *= 3;
+        else if (bonus === "DL") letterPoints *= 2;
+        else if (bonus === "TW") wordMultiplier *= 3;
+        else if (bonus === "DW" || bonus === "ST") wordMultiplier *= 2;
       }
 
       wordScore += letterPoints;
@@ -150,58 +156,67 @@ export function calcScore(board, placedTiles, confirmedBoard) {
  * @returns {string|null}  Error message, or null if the placement is valid.
  */
 export function validatePlacement(state) {
-  const { placedTiles, board, isFirstMove, confirmedBoard, formedWords } = state;
+  const { placedTiles, board, isFirstMove, confirmedBoard, formedWords } =
+    state;
 
-  if (!placedTiles.length) return 'Постави барем една плочка.';
+  if (!placedTiles.length) return "Постави барем една плочка.";
 
-  const rows = [...new Set(placedTiles.map(p => p.row))];
-  const cols = [...new Set(placedTiles.map(p => p.col))];
+  const rows = [...new Set(placedTiles.map((p) => p.row))];
+  const cols = [...new Set(placedTiles.map((p) => p.col))];
 
   // Must be in a single row OR single column
   if (rows.length > 1 && cols.length > 1) {
-    return 'Плочките мора да се во ист ред или колона.';
+    return "Плочките мора да се во ист ред или колона.";
   }
 
   // No gaps allowed within the placed sequence
   if (rows.length === 1) {
-    const sortedCols = placedTiles.map(p => p.col).sort((a, b) => a - b);
+    const sortedCols = placedTiles.map((p) => p.col).sort((a, b) => a - b);
     for (let c = sortedCols[0]; c <= sortedCols[sortedCols.length - 1]; c++) {
-      if (!board[rows[0]][c]) return 'Не смее да има празнини.';
+      if (!board[rows[0]][c]) return "Не смее да има празнини.";
     }
   }
   if (cols.length === 1) {
-    const sortedRows = placedTiles.map(p => p.row).sort((a, b) => a - b);
+    const sortedRows = placedTiles.map((p) => p.row).sort((a, b) => a - b);
     for (let r = sortedRows[0]; r <= sortedRows[sortedRows.length - 1]; r++) {
-      if (!board[r][cols[0]]) return 'Не смее да има празнини.';
+      if (!board[r][cols[0]]) return "Не смее да има празнини.";
     }
   }
 
   if (isFirstMove) {
     // First word must cover the centre star (7,7)
-    if (!placedTiles.some(p => p.row === 7 && p.col === 7)) {
-      return 'Првиот збор мора да го покрие центарот (★).';
+    if (!placedTiles.some((p) => p.row === 7 && p.col === 7)) {
+      return "Првиот збор мора да го покрие центарот (★).";
     }
     if (placedTiles.length < 2) {
-      return 'Првиот збор мора да има барем 2 букви.';
+      return "Првиот збор мора да има барем 2 букви.";
     }
   } else {
     // All subsequent words must connect to existing tiles
     let connected = false;
     outer: for (const p of placedTiles) {
       for (const [nr, nc] of [
-        [p.row - 1, p.col], [p.row + 1, p.col],
-        [p.row, p.col - 1], [p.row, p.col + 1],
+        [p.row - 1, p.col],
+        [p.row + 1, p.col],
+        [p.row, p.col - 1],
+        [p.row, p.col + 1],
       ]) {
-        if (nr >= 0 && nr < 15 && nc >= 0 && nc < 15 && confirmedBoard[nr][nc]) {
+        if (
+          nr >= 0 &&
+          nr < 15 &&
+          nc >= 0 &&
+          nc < 15 &&
+          confirmedBoard[nr][nc]
+        ) {
           connected = true;
           break outer;
         }
       }
     }
-    if (!connected) return 'Зборот мора да се поврзе со постоечки плочки.';
+    if (!connected) return "Зборот мора да се поврзе со постоечки плочки.";
   }
 
-  if (!formedWords.length) return 'Не е формиран збор.';
+  if (!formedWords.length) return "Не е формиран збор.";
 
   return null; // valid
 }
@@ -237,7 +252,11 @@ export function placeTile(state, row, col, tile, displayLetter) {
   });
 
   // Recalculate score preview
-  const { total, words } = calcScore(newBoard, newPlacedTiles, state.confirmedBoard);
+  const { total, words } = calcScore(
+    newBoard,
+    newPlacedTiles,
+    state.confirmedBoard,
+  );
 
   return {
     ...state,
@@ -258,14 +277,14 @@ export function placeTile(state, row, col, tile, displayLetter) {
  * @returns {GameState}
  */
 export function removePlacedTile(state, row, col) {
-  const placed = state.placedTiles.find(p => p.row === row && p.col === col);
+  const placed = state.placedTiles.find((p) => p.row === row && p.col === col);
   if (!placed) return state;
 
   const newBoard = cloneBoard(state.board);
   newBoard[row][col] = null;
 
   const newPlacedTiles = state.placedTiles.filter(
-    p => !(p.row === row && p.col === col)
+    (p) => !(p.row === row && p.col === col),
   );
 
   const players = state.players.map((p, i) => {
@@ -273,7 +292,11 @@ export function removePlacedTile(state, row, col) {
     return { ...p, rack: [...p.rack, placed.tile] };
   });
 
-  const { total, words } = calcScore(newBoard, newPlacedTiles, state.confirmedBoard);
+  const { total, words } = calcScore(
+    newBoard,
+    newPlacedTiles,
+    state.confirmedBoard,
+  );
 
   return {
     ...state,
@@ -345,24 +368,33 @@ export function assignJoker(state, tileId, letter) {
  * @returns {GameState}
  */
 export function finalizeTurn(state) {
-  const { currentPlayerIndex, turnScore, formedWords, placedTiles, players, tileBag } = state;
+  const {
+    currentPlayerIndex,
+    turnScore,
+    formedWords,
+    placedTiles,
+    players,
+    tileBag,
+  } = state;
 
   console.log("[finalizeTurn] debug", {
     currentPlayerIndex,
-    rackBefore: players[currentPlayerIndex].rack.map(t => t.id),
-    placedTileIds: placedTiles.map(p => p.tile?.id),
+    rackBefore: players[currentPlayerIndex].rack.map((t) => t.id),
+    placedTileIds: placedTiles.map((p) => p.tile?.id),
   });
 
-  const placedTileIds = new Set(placedTiles.map(p => p.tile?.id).filter(Boolean));
+  const placedTileIds = new Set(
+    placedTiles.map((p) => p.tile?.id).filter(Boolean),
+  );
 
   let updatedPlayers = players.map((p, i) => {
     if (i !== currentPlayerIndex) return p;
-    const rackWithoutPlaced = p.rack.filter(t => !placedTileIds.has(t.id));
+    const rackWithoutPlaced = p.rack.filter((t) => !placedTileIds.has(t.id));
     return { ...p, score: p.score + turnScore, rack: rackWithoutPlaced };
   });
 
   console.log("[finalizeTurn] rack after removal", {
-    rackAfter: updatedPlayers[currentPlayerIndex].rack.map(t => t.id),
+    rackAfter: updatedPlayers[currentPlayerIndex].rack.map((t) => t.id),
   });
 
   const needed = 7 - updatedPlayers[currentPlayerIndex].rack.length;
@@ -373,34 +405,39 @@ export function finalizeTurn(state) {
   });
 
   console.log("[finalizeTurn] rack after draw", {
-    rackFinal: updatedPlayers[currentPlayerIndex].rack.map(t => t.id),
+    rackFinal: updatedPlayers[currentPlayerIndex].rack.map((t) => t.id),
   });
 
-
   // Freeze the board
-  const newConfirmedBoard = state.board.map(row => row.map(cell => cell ? { ...cell } : null));
+  const newConfirmedBoard = state.board.map((row) =>
+    row.map((cell) => (cell ? { ...cell } : null)),
+  );
 
   // Update word records (for end-game bonuses)
   const wordRecords = { ...state.wordRecords };
   if (!wordRecords[currentPlayerIndex]) {
     wordRecords[currentPlayerIndex] = {
-      longestWord: '', longestLen: 0,
-      bestWord: '',    bestScore: 0,
+      longestWord: "",
+      longestLen: 0,
+      bestWord: "",
+      bestScore: 0,
     };
   }
   for (const w of formedWords) {
     if (w.word.length > wordRecords[currentPlayerIndex].longestLen) {
       wordRecords[currentPlayerIndex].longestWord = w.word;
-      wordRecords[currentPlayerIndex].longestLen  = w.word.length;
+      wordRecords[currentPlayerIndex].longestLen = w.word.length;
     }
   }
   if (turnScore > wordRecords[currentPlayerIndex].bestScore) {
-    wordRecords[currentPlayerIndex].bestWord  = formedWords.map(w => w.word).join('+');
+    wordRecords[currentPlayerIndex].bestWord = formedWords
+      .map((w) => w.word)
+      .join("+");
     wordRecords[currentPlayerIndex].bestScore = turnScore;
   }
 
   // Build a log entry
-  const logEntry = `${players[currentPlayerIndex].name}: ${formedWords.map(w => w.word).join(', ')} (+${turnScore})`;
+  const logEntry = `${players[currentPlayerIndex].name}: ${formedWords.map((w) => w.word).join(", ")} (+${turnScore})`;
 
   return {
     ...state,
@@ -434,9 +471,14 @@ export function advanceTurn(state, wasSkip = false) {
   }
 
   // Count consecutive passes
-  const newConsecutivePasses = wasSkip ? consecutivePasses + 1 : consecutivePasses;
+  const newConsecutivePasses = wasSkip
+    ? consecutivePasses + 1
+    : consecutivePasses;
   if (newConsecutivePasses >= players.length * 2) {
-    return triggerGameOver({ ...state, consecutivePasses: newConsecutivePasses });
+    return triggerGameOver({
+      ...state,
+      consecutivePasses: newConsecutivePasses,
+    });
   }
 
   // Find next player, skipping those with a penalty
@@ -461,7 +503,7 @@ export function advanceTurn(state, wasSkip = false) {
     placedTiles: [],
     turnScore: 0,
     formedWords: [],
-    status: 'playing',
+    status: "playing",
   };
 }
 
@@ -480,7 +522,7 @@ export function passTurn(state) {
 
 /**
  * Exchange the current player's tiles.
- * Costs 5 points. Does NOT end the turn — player continues with the new rack.
+ * Costs 5 points and consumes the current turn.
  *
  * Returns an error string if the exchange is not allowed, or a new state if it is.
  *
@@ -492,13 +534,13 @@ export function exchangeTiles(state) {
   const player = players[currentPlayerIndex];
 
   if (placedTiles.length > 0) {
-    return 'Замена е дозволена само ПРЕД да поставиш букви! Врати ги прво.';
+    return "Замена е дозволена само ПРЕД да поставиш букви! Врати ги прво.";
   }
   if (player.score < 5) {
     return `Немаш доволно поени за замена (потребни 5, имаш ${player.score}).`;
   }
   if (tileBag.length < 7) {
-    return 'Нема доволно плочки во кесата.';
+    return "Нема доволно плочки во кесата.";
   }
 
   const oldRack = [...player.rack];
@@ -512,12 +554,15 @@ export function exchangeTiles(state) {
 
   const logEntry = `${player.name}: замена (-5 п.)`;
 
-  return {
-    ...state,
-    players: updatedPlayers,
-    tileBag: newBag,
-    gameLog: [...state.gameLog, logEntry],
-  };
+  return advanceTurn(
+    {
+      ...state,
+      players: updatedPlayers,
+      tileBag: newBag,
+      gameLog: [...state.gameLog, logEntry],
+    },
+    true,
+  );
 }
 
 /**
@@ -539,7 +584,10 @@ export function applyChallengeResult(state, isValid) {
     let challengerIdx = -1;
     for (let off = 1; off < state.players.length; off++) {
       const idx = (state.currentPlayerIndex + off) % state.players.length;
-      if (state.players[idx].type === 'human') { challengerIdx = idx; break; }
+      if (state.players[idx].type === "human") {
+        challengerIdx = idx;
+        break;
+      }
     }
 
     if (challengerIdx === -1) return state; // no human challenger found
@@ -549,7 +597,7 @@ export function applyChallengeResult(state, isValid) {
       return { ...p, skipPenalty: true };
     });
 
-    const logEntry = `🔍 "${state.formedWords.map(w => w.word).join(', ')}" потврден — ${updatedPlayers[challengerIdx].name} казнет`;
+    const logEntry = `🔍 "${state.formedWords.map((w) => w.word).join(", ")}" потврден — ${updatedPlayers[challengerIdx].name} казнет`;
     return {
       ...state,
       players: updatedPlayers,
@@ -557,7 +605,7 @@ export function applyChallengeResult(state, isValid) {
     };
   } else {
     // Word invalid — return tiles, current player loses turn
-    const logEntry = `🔍 "${state.formedWords.map(w => w.word).join(', ')}" одбиен`;
+    const logEntry = `🔍 "${state.formedWords.map((w) => w.word).join(", ")}" одбиен`;
     const withLog = { ...state, gameLog: [...state.gameLog, logEntry] };
     return returnAllPlacedTiles(withLog);
   }
@@ -594,15 +642,25 @@ export function applyAIMove(state, placements) {
     const row = Number(pl.row);
     const col = Number(pl.col);
     const letter = normalizeAIMoveLetter(pl.letter);
-    if (!Number.isInteger(row) || row < 0 || row > 14 || !Number.isInteger(col) || col < 0 || col > 14) continue;
+    if (
+      !Number.isInteger(row) ||
+      row < 0 ||
+      row > 14 ||
+      !Number.isInteger(col) ||
+      col < 0 ||
+      col > 14
+    )
+      continue;
     if (Array.from(letter).length !== 1 || newBoard[row][col]) continue;
 
     // Try to find a matching tile in the rack
-    let tileIndex = rackCopy.findIndex(t => normalizeAIMoveLetter(t.letter) === letter);
+    let tileIndex = rackCopy.findIndex(
+      (t) => normalizeAIMoveLetter(t.letter) === letter,
+    );
 
     // If not found, try to use a joker
     if (tileIndex === -1) {
-      tileIndex = rackCopy.findIndex(t => t.letter === '★');
+      tileIndex = rackCopy.findIndex((t) => t.letter === "★");
       if (tileIndex !== -1) {
         newJokerAssignments[rackCopy[tileIndex].id] = letter;
       }
@@ -624,7 +682,11 @@ export function applyAIMove(state, placements) {
     return { ...p, rack: rackCopy };
   });
 
-  const { total, words } = calcScore(newBoard, newPlacedTiles, state.confirmedBoard);
+  const { total, words } = calcScore(
+    newBoard,
+    newPlacedTiles,
+    state.confirmedBoard,
+  );
 
   return {
     ...state,
@@ -639,7 +701,7 @@ export function applyAIMove(state, placements) {
 
 // ─── Game over ──────────────────────────────
 
-const LONGEST_BONUS   = 15;
+const LONGEST_BONUS = 15;
 const BESTSCORE_BONUS = 10;
 
 /**
@@ -649,14 +711,16 @@ const BESTSCORE_BONUS = 10;
  * @returns {GameState}
  */
 export function triggerGameOver(state) {
-  let players = state.players.map(p => ({
+  let players = state.players.map((p) => ({
     ...p,
     score: Math.max(0, p.score - p.rack.reduce((sum, t) => sum + t.points, 0)),
   }));
 
   // Find who had the longest word and the best single-turn score
-  let globalLongestLen = 0,  longestPlayers   = [];
-  let globalBestScore  = 0,  bestScorePlayers = [];
+  let globalLongestLen = 0,
+    longestPlayers = [];
+  let globalBestScore = 0,
+    bestScorePlayers = [];
 
   for (let i = 0; i < players.length; i++) {
     const rec = state.wordRecords[i];
@@ -683,27 +747,27 @@ export function triggerGameOver(state) {
     if (!bonuses[pi]) bonuses[pi] = { longest: 0, bestScore: 0 };
     bonuses[pi].longest = LONGEST_BONUS;
     players = players.map((p, i) =>
-      i === pi ? { ...p, score: p.score + LONGEST_BONUS } : p
+      i === pi ? { ...p, score: p.score + LONGEST_BONUS } : p,
     );
   }
   for (const pi of bestScorePlayers) {
     if (!bonuses[pi]) bonuses[pi] = { longest: 0, bestScore: 0 };
     bonuses[pi].bestScore = BESTSCORE_BONUS;
     players = players.map((p, i) =>
-      i === pi ? { ...p, score: p.score + BESTSCORE_BONUS } : p
+      i === pi ? { ...p, score: p.score + BESTSCORE_BONUS } : p,
     );
   }
 
   const endBonuses = {
-    longestPlayers:   longestPlayers.map(i => ({
-      name:  players[i].name,
-      word:  state.wordRecords[i]?.longestWord,
-      len:   globalLongestLen,
+    longestPlayers: longestPlayers.map((i) => ({
+      name: players[i].name,
+      word: state.wordRecords[i]?.longestWord,
+      len: globalLongestLen,
       bonus: LONGEST_BONUS,
     })),
-    bestScorePlayers: bestScorePlayers.map(i => ({
-      name:  players[i].name,
-      word:  state.wordRecords[i]?.bestWord,
+    bestScorePlayers: bestScorePlayers.map((i) => ({
+      name: players[i].name,
+      word: state.wordRecords[i]?.bestWord,
       score: globalBestScore,
       bonus: BESTSCORE_BONUS,
     })),
@@ -714,7 +778,7 @@ export function triggerGameOver(state) {
     ...state,
     players,
     endBonuses,
-    status: 'gameOver',
+    status: "gameOver",
     // Clear any in-progress turn state
     placedTiles: [],
     turnScore: 0,
