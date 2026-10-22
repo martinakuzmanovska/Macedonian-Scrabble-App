@@ -346,7 +346,7 @@ export default function ChallengeModal({
                     "linear-gradient(135deg, oklch(0.76 0.08 36), oklch(0.68 0.1 24))",
                   )}
                 >
-                  🔄 Врати плочки
+                  ОК
                 </button>
               )}
               {challengeResult.valid === null && (

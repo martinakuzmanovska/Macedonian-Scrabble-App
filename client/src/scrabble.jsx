@@ -770,12 +770,10 @@ export default function MacedonianScrabble({
             setPlacedTiles([]);
             setFormedWords([]);
             setTurnScore(0);
-            setChallengeResult(null);
-            // The invalid-word path immediately returns to the board. Leaving
-            // this true makes this client ignore every future polling update.
-            showingChallengeResultRef.current = false;
+            // Keep the result modal open until the player acknowledges it.
+            // The server state is already applied, and polling remains paused
+            // while this challenge result is visible.
             setMessage(`❌ "${word}" не е валиден! Плочките се вратени.`);
-            setScreen("playing");
           } else {
             showingChallengeResultRef.current = false;
             setMessage(
@@ -910,6 +908,7 @@ export default function MacedonianScrabble({
             setScreen("gameOver");
             return;
           }
+          setScreen("playing");
           const nextCp = normalizedPlayers[s.currentPlayerIndex ?? 0];
           setMessage(nextCp ? `${nextCp.name} — твој ред!` : "");
         } else {
