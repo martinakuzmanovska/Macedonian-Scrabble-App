@@ -161,6 +161,66 @@ router.post("/:gameId/join", async (req, res) => {
   }
 });
 
+// ── List active games for current user ────────
+router.get("/leaderboard", async (_req, res) => {
+  try {
+    const leaderboard = await Game.aggregate([
+      { $match: { status: "finished" } },
+      {
+        $addFields: {
+          winningScore: { $max: "$players.score" },
+        },
+      },
+      { $unwind: "$players" },
+      {
+        $match: {
+          "players.type": "human",
+          "players.userId": { $ne: null },
+        },
+      },
+      { $sort: { updatedAt: -1 } },
+      {
+        $group: {
+          _id: "$players.userId",
+          name: { $first: "$players.displayName" },
+          age: { $first: "$players.age" },
+          bestScore: { $max: "$players.score" },
+          totalGames: { $sum: 1 },
+          wins: {
+            $sum: {
+              $cond: [{ $eq: ["$players.score", "$winningScore"] }, 1, 0],
+            },
+          },
+          totalScore: { $sum: "$players.score" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          userId: "$_id",
+          name: 1,
+          age: 1,
+          bestScore: 1,
+          totalGames: 1,
+          wins: 1,
+          avgScore: {
+            $round: [{ $divide: ["$totalScore", "$totalGames"] }, 0],
+          },
+        },
+      },
+      { $sort: { bestScore: -1, wins: -1, totalGames: -1, name: 1 } },
+      { $limit: 100 },
+    ]);
+
+    res.json({ success: true, leaderboard });
+  } catch (err) {
+    console.error("leaderboard error:", err);
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to load leaderboard" });
+  }
+});
+
 // ── Load ──────────────────────────────────────
 router.get("/:gameId", async (req, res) => {
   try {
@@ -186,7 +246,6 @@ router.get("/:gameId", async (req, res) => {
   }
 });
 
-// ── List active games for current user ────────
 router.get("/", async (req, res) => {
   try {
     const games = await Game.find({
@@ -577,7 +636,11 @@ router.post("/:gameId/challenge-result", async (req, res) => {
         turnScore: 0,
         formedWords: [],
         gameLog: newLog,
-        status: "playing",
+        status:
+          bagCopy.length === 0 &&
+          updatedPlayers[state.currentPlayerIndex].rack.length === 0
+            ? "gameOver"
+            : "playing",
       };
       await maybeBonus(
         game,

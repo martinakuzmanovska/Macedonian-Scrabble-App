@@ -21,10 +21,7 @@ import {
   createEmptyBoard,
 } from "./game/gameState.js";
 
-import {
-  loadLeaderboard,
-  updateLeaderboard,
-} from "./services/leaderboardService.js";
+import { loadLeaderboard } from "./services/leaderboardService.js";
 import { SFX, playBonusSound } from "./services/soundService.js";
 import { getWordInfo, validateWordWithAI } from "./services/wordService.js";
 
@@ -1238,10 +1235,6 @@ export default function MacedonianScrabble({
         .map((w) => w.name)
         .join(" и ")} победи!`,
     );
-    for (const p of np) {
-      if (p.type !== "ai")
-        await updateLeaderboard(p.name, p.score, p.score === maxS, p.age);
-    }
     setLeaderboard(await loadLeaderboard());
   };
   endGameRef.current = endGame;
