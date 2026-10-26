@@ -6,6 +6,7 @@ import HomePage from "./components/HomePage.jsx";
 import InviteScreen from "./components/InviteScreen.jsx";
 import MacedonianScrabble from "./scrabble.jsx";
 import { loadLeaderboard } from "./services/leaderboardService.js";
+import "./components/LeaderboardModal.css";
 
 const PENDING_ACTION_KEY = "mk-scrabble-pending-action";
 
@@ -74,124 +75,70 @@ function AppNavbar({ user, onLogin, onLogout, onOpenLeaderboard }) {
 
 function LeaderboardModal({ onClose, leaderboard }) {
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(2,6,23,0.72)",
-        backdropFilter: "blur(6px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 30,
-        padding: 20,
-      }}
-    >
+    <div className="leaderboard-overlay" onClick={onClose}>
       <div
+        className="leaderboard-modal scrabble-card"
         onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "100%",
-          maxWidth: 560,
-          background: "rgba(15,23,42,0.96)",
-          border: "1px solid rgba(99,102,241,0.2)",
-          borderRadius: 18,
-          boxShadow: "0 30px 90px rgba(0,0,0,0.6)",
-          padding: 24,
-        }}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 16,
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontSize: 10,
-                letterSpacing: 3,
-                color: "#a5b4fc",
-                marginBottom: 6,
-              }}
-            >
-              RANKING
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>Leaderboard</div>
+        <header className="leaderboard-header">
+          <div className="leaderboard-heading">
+            <div className="leaderboard-eyebrow">Рангирање</div>
+            <h2>Табла на најдобри</h2>
           </div>
           <button
+            className="scrabble-button scrabble-button--outline leaderboard-close"
             onClick={onClose}
-            style={{
-              background: "transparent",
-              border: "1px solid rgba(99,102,241,0.35)",
-              color: "#cbd5e1",
-              borderRadius: 10,
-              padding: "8px 12px",
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
           >
-            Close
+            Затвори
           </button>
-        </div>
+        </header>
 
         {!leaderboard.length ? (
-          <div style={{ textAlign: "center", padding: 32, color: "#94a3b8" }}>
-            No results yet.
-          </div>
+          <div className="leaderboard-empty">Сè уште нема резултати!</div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "32px 1fr 60px 60px 50px 50px",
-                gap: 8,
-                fontSize: 10,
-                color: "#94a3b8",
-                letterSpacing: 1,
-                textTransform: "uppercase",
-                padding: "8px 12px",
-              }}
-            >
+          <div className="leaderboard-table-wrap">
+            <div className="leaderboard-table-head">
               <span>#</span>
-              <span>Player</span>
-              <span style={{ textAlign: "right" }}>Best</span>
-              <span style={{ textAlign: "right" }}>Avg</span>
-              <span style={{ textAlign: "right" }}>Games</span>
-              <span style={{ textAlign: "right" }}>Wins</span>
+              <span>Играч</span>
+              <span>Најдобар</span>
+              <span>Просек</span>
+              <span>Игри</span>
+              <span>Победи</span>
             </div>
-            {leaderboard.map((entry, index) => (
-              <div
-                key={entry.name + index}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "32px 1fr 60px 60px 50px 50px",
-                  gap: 8,
-                  padding: "10px 12px",
-                  background: "rgba(99,102,241,0.05)",
-                  border: "1px solid rgba(99,102,241,0.08)",
-                  borderRadius: 10,
-                  alignItems: "center",
-                }}
-              >
-                <span style={{ fontWeight: 700, color: "#a5b4fc" }}>
-                  {index + 1}
-                </span>
-                <span style={{ fontWeight: 600 }}>{entry.name}</span>
-                <span style={{ textAlign: "right" }}>
-                  {entry.bestScore ?? 0}
-                </span>
-                <span style={{ textAlign: "right" }}>
-                  {entry.avgScore ?? 0}
-                </span>
-                <span style={{ textAlign: "right" }}>
-                  {entry.totalGames ?? 0}
-                </span>
-                <span style={{ textAlign: "right" }}>{entry.wins ?? 0}</span>
-              </div>
-            ))}
+            <ol className="leaderboard-entries">
+              {leaderboard.map((entry, index) => (
+                <li
+                  className={`leaderboard-entry${index === 0 ? " leaderboard-entry--top" : ""}`}
+                  key={entry.userId || `${entry.name}-${index}`}
+                >
+                  <span
+                    className="leaderboard-rank"
+                    aria-label={`Ранг ${index + 1}`}
+                  >
+                    {index === 0
+                      ? "🥇"
+                      : index === 1
+                        ? "🥈"
+                        : index === 2
+                          ? "🥉"
+                          : index + 1}
+                  </span>
+                  <span className="leaderboard-player-name">{entry.name}</span>
+                  <span className="leaderboard-stat leaderboard-best-score">
+                    {entry.bestScore ?? 0}
+                  </span>
+                  <span className="leaderboard-stat">
+                    {entry.avgScore ?? 0}
+                  </span>
+                  <span className="leaderboard-stat">
+                    {entry.totalGames ?? 0}
+                  </span>
+                  <span className="leaderboard-stat leaderboard-wins">
+                    {entry.wins ?? 0}
+                  </span>
+                </li>
+              ))}
+            </ol>
           </div>
         )}
       </div>
@@ -320,6 +267,10 @@ export default function App() {
           initialGameState={{ ...gameState, gameId }}
           onSendAction={sendAction}
           onLeave={clearGame}
+          onOpenLeaderboard={() => {
+            loadLeaderboard().then(setLeaderboard);
+            setShowLeaderboard(true);
+          }}
           onLogout={logout}
         />
       );

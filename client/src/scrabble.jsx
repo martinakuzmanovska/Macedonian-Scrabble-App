@@ -32,6 +32,7 @@ export default function MacedonianScrabble({
   initialGameState,
   user,
   onLeave,
+  onOpenLeaderboard: openAppLeaderboard,
 } = {}) {
   const hasServerGame = !!initialGameState;
 
@@ -269,8 +270,13 @@ export default function MacedonianScrabble({
     };
 
     const interval = setInterval(async () => {
-      // Skip polling only when actively placing tiles on board
-      if (screenRef.current === "gameOver") return;
+      // Poll only while a game screen is active. Polling a finished game after
+      // navigating to setup/leaderboard/home would force the screen back to
+      // gameOver when the server returns its unchanged final state.
+      if (
+        ["gameOver", "leaderboard", "setup", "home"].includes(screenRef.current)
+      )
+        return;
       if (
         isMyTurnRef.current &&
         isPlacingRef.current &&
@@ -1388,8 +1394,18 @@ export default function MacedonianScrabble({
         endBonuses={endBonuses}
         message={message}
         gameLog={gameLog}
-        onNewGame={() => setScreen("setup")}
+        onNewGame={() => {
+          if (hasServerGame) {
+            onLeave?.();
+            return;
+          }
+          setScreen("setup");
+        }}
         onOpenLeaderboard={() => {
+          if (hasServerGame && openAppLeaderboard) {
+            openAppLeaderboard();
+            return;
+          }
           loadLeaderboard().then(setLeaderboard);
           setScreen("leaderboard");
         }}
