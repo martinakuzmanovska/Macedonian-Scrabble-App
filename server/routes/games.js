@@ -1,3 +1,4 @@
+import { formatGameLog } from "../game/formatGameLog.js";
 import express from "express";
 import { requireAuth } from "../middleware/requireAuth.js";
 import Game from "../models/Game.js";
@@ -423,13 +424,9 @@ router.post("/:gameId/finalize", async (req, res) => {
     );
 
     // Log
-    const wordStr = (state.formedWords ?? [])
-      .map((w) => w.word || w)
-      .join(", ");
-    const cpName = state.players[state.currentPlayerIndex].displayName;
     const newLog = [
       ...(state.gameLog ?? []),
-      `${cpName}: ${wordStr} (+${score})`,
+      formatGameLog({ type: "move", player: state.players[state.currentPlayerIndex], words: state.formedWords ?? [], score }),
     ];
 
     // Advance to next player
@@ -579,13 +576,9 @@ router.post("/:gameId/challenge-result", async (req, res) => {
       const newConfirmed = state.board.map((r) =>
         r.map((c) => (c ? { ...c } : null)),
       );
-      const wordStr = (state.formedWords ?? [])
-        .map((w) => w.word || w)
-        .join(", ");
-      const cpName = state.players[state.currentPlayerIndex].displayName;
       const newLog = [
         ...(state.gameLog ?? []),
-        `${cpName}: ${wordStr} (+${score}) ✅`,
+        formatGameLog({ type: "move", player: state.players[state.currentPlayerIndex], words: state.formedWords ?? [], score }),
       ];
 
       // Advance — skip the challenger who just lost their turn
@@ -642,7 +635,7 @@ router.post("/:gameId/challenge-result", async (req, res) => {
       );
       const newLog = [
         ...(state.gameLog ?? []),
-        `${state.players[state.currentPlayerIndex].displayName}: невалиден збор — плочки вратени`,
+        formatGameLog({ type: "challenge-invalid", player: state.players[state.currentPlayerIndex] }),
       ];
 
       const next = (state.currentPlayerIndex + 1) % state.players.length;
@@ -697,7 +690,7 @@ router.post("/:gameId/bonus-answer", async (req, res) => {
     const { choice } = req.body;
     if (choice === -1) {
       game.gameLog.push(
-        `${player.displayName}: бонус прашање за „${pendingBonus.word}“ — откажано`,
+        formatGameLog({ type: "bonus", player, word: pendingBonus.word, outcome: "declined" }),
       );
       game.pendingBonus = null;
       game.markModified("pendingBonus");
@@ -726,7 +719,7 @@ router.post("/:gameId/bonus-answer", async (req, res) => {
     if (correct) player.score = (player.score ?? 0) + 5;
 
     game.gameLog.push(
-      `${player.displayName}: бонус прашање за „${pendingBonus.word}“ — ${correct ? "точен одговор (+5)" : "погрешен одговор"}`,
+      formatGameLog({ type: "bonus", player, word: pendingBonus.word, outcome: correct ? "correct" : "incorrect" }),
     );
     game.pendingBonus = null;
     game.markModified("pendingBonus");

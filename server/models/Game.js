@@ -163,7 +163,10 @@ gameSchema.methods.toEngineState = function () {
     gameMode: plain.gameMode ?? "classic",
     scoreHistory: plain.scoreHistory ?? [],
     pendingBonus: plain.pendingBonus ?? null,
-    players: plain.players,
+    players: plain.players.map((player) => ({
+      ...player,
+      name: player.displayName,
+    })),
     currentPlayerIndex: plain.currentPlayerIndex,
     board: JSON.parse(plain.boardJSON),
     confirmedBoard: JSON.parse(plain.confirmedBoardJSON),

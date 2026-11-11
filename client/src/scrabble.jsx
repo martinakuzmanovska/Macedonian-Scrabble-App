@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import "./scrabble.css";
 import { useAIMove } from "./hooks/useAIMove.js";
-import SetupScreen from "./components/SetupScreen.jsx";
 import GameOverScreen from "./components/GameOverScreen.jsx";
 import ScrabbleBoard from "./components/ScrabbleBoard.jsx";
 import ChallengeModal from "./components/ChallengeModal.jsx";
@@ -9,19 +8,12 @@ import WaitingChallengeModal from "./components/WaitingChallengeModal.jsx";
 import JokerModal from "./components/JokerModal.jsx";
 import PlayerRack from "./components/PlayerRack.jsx";
 import WordInfoModal from "./components/WordInfoModal.jsx";
-import LeaderboardScreen from "./components/LeaderboardScreen.jsx";
 import GameSidebar from "./components/GameSidebar.jsx";
 
 import { MK_LETTERS, BONUS_MAP, getPoints } from "./game/constants";
 
-import {
-  createTileBag,
-  drawTiles,
-  returnTilesToBag,
-  createEmptyBoard,
-} from "./game/gameState.js";
+import { createEmptyBoard } from "./game/gameState.js";
 
-import { loadLeaderboard } from "./services/leaderboardService.js";
 import { SFX, playBonusSound } from "./services/soundService.js";
 import { getWordInfo, validateWordWithAI } from "./services/wordService.js";
 
@@ -34,11 +26,10 @@ export default function MacedonianScrabble({
   onLeave,
   onOpenLeaderboard: openAppLeaderboard,
 } = {}) {
-  const hasServerGame = !!initialGameState;
+  const hasServerGame = !!initialGameState?.gameId;
 
   const [screen, setScreen] = useState(() => {
-    if (!initialGameState) return "home";
-    if (initialGameState.status === "gameOver") return "gameOver";
+    if (initialGameState?.status === "gameOver") return "gameOver";
     return "playing";
   });
   const [board, setBoard] = useState(
@@ -75,75 +66,37 @@ export default function MacedonianScrabble({
   const [jokerAssignments, setJokerAssignments] = useState(
     () => initialGameState?.jokerAssignments ?? {},
   );
-  const [consecutivePasses, setConsecutivePasses] = useState(
-    () => initialGameState?.consecutivePasses ?? 0,
-  );
   const [gameLog, setGameLog] = useState(() => initialGameState?.gameLog ?? []);
   const [isFirstMove, setIsFirstMove] = useState(
     () => initialGameState?.isFirstMove ?? true,
   );
-  const [leaderboard, setLeaderboard] = useState([]);
   const [isAIThinking, setIsAIThinking] = useState(false);
   const [aiMoveDisplay, setAiMoveDisplay] = useState(null);
   const [wordInfoModal, setWordInfoModal] = useState(null);
   const [isLoadingInfo, setIsLoadingInfo] = useState(false);
   const [draggedTile, setDraggedTile] = useState(null);
-  const [wordRecords, setWordRecords] = useState({}); // { playerIdx: { longestWord, longestLen, bestWord, bestScore } }
-  const [endBonuses, setEndBonuses] = useState(null); // shown at game over
-  const [setupPlayers, setSetupPlayers] = useState([
-    { name: "Играч 1", age: 25, type: "human" },
-    { name: "Играч 2", age: 25, type: "human" },
-  ]);
+  const [endBonuses, setEndBonuses] = useState(() => initialGameState?.endBonuses ?? null);
 
   // Which slot is the logged-in user? Compare as strings to handle ObjectId vs string.
-  const myPlayerIndex = hasServerGame
-    ? (initialGameState?.players ?? []).findIndex((p) => {
-        if (!p.userId) return false;
-        const uid = user?._id ?? user?.id ?? "";
-        return p.userId.toString() === uid.toString();
-      })
-    : currentPlayer;
-
-  // Only allow interaction when it's this user's turn
-  const isMyTurn =
-    !hasServerGame || (myPlayerIndex !== -1 && myPlayerIndex === currentPlayer);
-  // DEBUG — remove after confirming correct
-  if (hasServerGame)
-    console.log(
-      "myPlayerIndex:",
-      myPlayerIndex,
-      "currentPlayer:",
-      currentPlayer,
-      "isMyTurn:",
-      isMyTurn,
-      "userId:",
-      user?._id ?? user?.id,
-      "players userIds:",
-      (initialGameState?.players ?? []).map((p) => p.userId),
-    );
+  const myPlayerIndex = players.findIndex((player) => {
+    const uid = user?._id ?? user?.id ?? "";
+    return player.userId?.toString() === uid.toString();
+  });
+  const isMyTurn = hasServerGame && myPlayerIndex !== -1 && myPlayerIndex === currentPlayer;
 
   // Stable refs so polling closure always reads current values
+  const initialStateRef = useRef(initialGameState);
   const gameIdRef = useRef(initialGameState?.gameId ?? null);
   const isMyTurnRef = useRef(false);
   const isPlacingRef = useRef(false);
   const placedTilesRef = useRef([]);
   const screenRef = useRef(screen);
   const showingChallengeResultRef = useRef(false);
-  const endGameRef = useRef(null);
-  const addLog = useCallback(
-    (entry) => setGameLog((previous) => [...previous, entry]),
-    [],
-  );
-
   const { triggerAIMove } = useAIMove({
-    jokerAssignments,
-    consecutivePasses,
-    addLog,
-    endGameRef,
-    playWordSuccess: SFX.wordSuccess,
     setAIThinking: setIsAIThinking,
+    setEndBonuses,
+    setGameLog,
     setMessage,
-    setConsecutivePasses,
     setCurrentPlayer,
     setJokerAssignments,
     setBoard,
@@ -154,39 +107,19 @@ export default function MacedonianScrabble({
     setAIMoveDisplay: setAiMoveDisplay,
     setTileBag,
     setConfirmedBoard,
-    setWordRecords,
     setIsFirstMove,
     setScreen,
     gameId: initialGameState?.gameId,
   });
 
+  // Resume a server game if it was loaded during an AI turn.
   useEffect(() => {
-    loadLeaderboard().then(setLeaderboard);
-  }, []);
-
-  // Trigger AI move on mount if it's AI's turn from the start
-  useEffect(() => {
-    if (!hasServerGame) return;
-    const cp =
-      initialGameState?.players?.[initialGameState?.currentPlayerIndex ?? 0];
-    if (cp?.type === "ai") {
-      const conf = initialGameState.confirmedBoard ?? createEmptyBoard();
-      setTimeout(
-        () =>
-          triggerAIMove(
-            (initialGameState.players ?? []).map((p) => ({
-              ...p,
-              name: p.displayName || p.name || "Играч",
-            })),
-            initialGameState.currentPlayerIndex ?? 0,
-            conf,
-            initialGameState.tileBag ?? [],
-            initialGameState.isFirstMove ?? true,
-          ),
-        800,
-      );
-    }
-  }, []);
+    const state = initialStateRef.current;
+    const index = state?.currentPlayerIndex ?? 0;
+    if (!state?.gameId || state.status !== "playing" || state.players?.[index]?.type !== "ai") return;
+    const timeoutId = setTimeout(() => triggerAIMove(state.players, index), 800);
+    return () => clearTimeout(timeoutId);
+  }, [triggerAIMove]);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -218,13 +151,13 @@ export default function MacedonianScrabble({
         name: p.displayName || p.name || "Играч",
       }));
       setPlayers(normalizedPlayers);
+      setEndBonuses(s.endBonuses ?? null);
       setCurrentPlayer(s.currentPlayerIndex ?? 0);
       setBoard(s.board ?? createEmptyBoard());
       setConfirmedBoard(s.confirmedBoard ?? createEmptyBoard());
       setTileBag(s.tileBag ?? []);
       setGameLog(s.gameLog ?? []);
       setIsFirstMove(s.isFirstMove ?? false);
-      setConsecutivePasses(s.consecutivePasses ?? 0);
       setJokerAssignments(s.jokerAssignments ?? {});
       setTurnScore(s.turnScore ?? 0);
       if (s.status === "gameOver") {
@@ -296,7 +229,7 @@ export default function MacedonianScrabble({
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [hasServerGame]); // run once on mount — interval reads latest state via closure refs
+  }, [hasServerGame, user?._id, user?.id]); // polling — interval reads latest state via closure refs
 
   const getDisplayLetter = (tile) => {
     if (!tile) return "";
@@ -347,39 +280,7 @@ export default function MacedonianScrabble({
     setSelectedTile(null);
   };
 
-  // ─── GAME START ───
-  const startGame = () => {
-    if (hasServerGame) return; // server owns this game
-    const bag = createTileBag();
-    const gp = setupPlayers.map((sp) => ({
-      ...sp,
-      rack: drawTiles(bag, 7),
-      score: 0,
-      skipPenalty: false,
-    }));
-    setTileBag([...bag]);
-    setPlayers(gp);
-    setBoard(createEmptyBoard());
-    setConfirmedBoard(createEmptyBoard());
-    setCurrentPlayer(0);
-    setPlacedTiles([]);
-    setIsFirstMove(true);
-    setConsecutivePasses(0);
-    setGameLog([]);
-    setJokerAssignments({});
-    setAiMoveDisplay(null);
-    setWordInfoModal(null);
-    setWordRecords({});
-    setEndBonuses(null);
-    setMessage(`${gp[0].name} — твој ред!`);
-    setScreen("playing");
-    if (gp[0].type === "ai")
-      setTimeout(
-        () => triggerAIMove(gp, 0, createEmptyBoard(), bag, true),
-        600,
-      );
-  };
-
+  // Tile selection and placement previews
   const selectTile = (tile, index) => {
     if (
       screen !== "playing" ||
@@ -580,12 +481,6 @@ export default function MacedonianScrabble({
   };
 
   const confirmPlacement = async () => {
-    console.log(
-      "confirmPlacement called, hasServerGame:",
-      hasServerGame,
-      "placedTiles:",
-      placedTiles.length,
-    );
     const err = validatePlacement();
     if (err) {
       setMessage(err);
@@ -613,20 +508,20 @@ export default function MacedonianScrabble({
         const data = await res.json();
         if (data.success) {
           isPlacingRef.current = false;
-          if (data.state?.status === "playing") {
+          if (["playing", "gameOver"].includes(data.state?.status)) {
             const serverState = data.state;
             const normalizedPlayers = (serverState.players ?? []).map((p) => ({
               ...p,
               name: p.displayName || p.name || "Играч",
             }));
             setPlayers(normalizedPlayers);
+            setEndBonuses(serverState.endBonuses ?? null);
             setCurrentPlayer(serverState.currentPlayerIndex ?? 0);
             setBoard(serverState.board ?? createEmptyBoard());
             setConfirmedBoard(serverState.confirmedBoard ?? createEmptyBoard());
             setTileBag(serverState.tileBag ?? []);
             setGameLog(serverState.gameLog ?? []);
             setIsFirstMove(serverState.isFirstMove ?? false);
-            setConsecutivePasses(serverState.consecutivePasses ?? 0);
             setJokerAssignments(serverState.jokerAssignments ?? {});
             setPlacedTiles([]);
             setFormedWords([]);
@@ -643,13 +538,7 @@ export default function MacedonianScrabble({
             ) {
               setTimeout(
                 () =>
-                  triggerAIMove(
-                    normalizedPlayers,
-                    nextIndex,
-                    serverState.confirmedBoard ?? createEmptyBoard(),
-                    serverState.tileBag ?? [],
-                    serverState.isFirstMove ?? false,
-                  ),
+                  triggerAIMove(normalizedPlayers, nextIndex),
                 800,
               );
             } else {
@@ -674,21 +563,6 @@ export default function MacedonianScrabble({
       }
       return;
     }
-
-    const otherHumans = players.filter(
-      (p, i) => i !== currentPlayer && p.type === "human",
-    );
-    if (!otherHumans.length) {
-      finalizeTurn();
-      return;
-    }
-    const wl = formedWords.map((w) => w.word).join(", ");
-    const note =
-      formedWords.length > 1 ? ` (${formedWords.length} зборови)` : "";
-    setMessage(
-      `${players[currentPlayer].name}: ${wl}${note} = ${turnScore} п.`,
-    );
-    setScreen("challenge");
   };
 
   const challengeWord = async (word) => {
@@ -716,29 +590,8 @@ export default function MacedonianScrabble({
           );
           const data = await res.json();
           if (data.success) {
-            const challenger = data.state.players.find(
-              (p, i) =>
-                i !== data.state.currentPlayerIndex - 1 && p.type === "human",
-            );
             setMessage(
               `✅ "${word}" е валиден! Предизвикувачот го губи следниот ред.`,
-            );
-          }
-        } else {
-          let challengerIdx = -1;
-          for (let off = 1; off < players.length; off++) {
-            const idx = (currentPlayer + off) % players.length;
-            if (players[idx].type === "human") {
-              challengerIdx = idx;
-              break;
-            }
-          }
-          if (challengerIdx >= 0) {
-            const np = [...players];
-            np[challengerIdx] = { ...np[challengerIdx], skipPenalty: true };
-            setPlayers(np);
-            setMessage(
-              `✅ "${word}" е валиден! ${np[challengerIdx].name} го губи следниот ред.`,
             );
           }
         }
@@ -783,10 +636,6 @@ export default function MacedonianScrabble({
               `⚠️ Грешка: ${data.error ?? "Неуспешно обработување на предизвикот."}`,
             );
           }
-        } else {
-          setMessage(
-            `❌ "${word}" НЕ е валиден! ${players[currentPlayer].name} враќа плочки.`,
-          );
         }
       } else {
         setChallengeResult({ word, ...result });
@@ -864,12 +713,6 @@ export default function MacedonianScrabble({
   };
 
   const finalizeTurn = async () => {
-    console.log(
-      "finalizeTurn called, hasServerGame:",
-      hasServerGame,
-      "gameId:",
-      initialGameState?.gameId,
-    );
     SFX.wordSuccess();
 
     // In multiplayer games, the opponent calls finalize to accept the move
@@ -899,7 +742,6 @@ export default function MacedonianScrabble({
           setTileBag(s.tileBag ?? []);
           setGameLog(s.gameLog ?? []);
           setIsFirstMove(s.isFirstMove ?? false);
-          setConsecutivePasses(s.consecutivePasses ?? 0);
           setJokerAssignments(s.jokerAssignments ?? {});
           setPlacedTiles([]);
           setFormedWords([]);
@@ -907,6 +749,7 @@ export default function MacedonianScrabble({
           setSelectedTile(null);
           setChallengeResult(null);
           setAiMoveDisplay(null);
+          setEndBonuses(s.endBonuses ?? null);
           if (s.status === "gameOver") {
             setScreen("gameOver");
             return;
@@ -922,93 +765,6 @@ export default function MacedonianScrabble({
         setMessage("⚠️ Грешка при зачувување.");
       }
       return;
-    }
-
-    // Local (single-player / AI) mode — original logic
-    const np = [...players];
-    np[currentPlayer] = {
-      ...np[currentPlayer],
-      score: np[currentPlayer].score + turnScore,
-    };
-    const needed = 7 - np[currentPlayer].rack.length;
-    const { drawn, remainingBag } = drawTiles(tileBag, needed);
-    np[currentPlayer] = {
-      ...np[currentPlayer],
-      rack: [...np[currentPlayer].rack, ...drawn],
-    };
-    setTileBag(remainingBag);
-    setPlayers(np);
-    const newConf = board.map((r) => r.map((c) => (c ? { ...c } : null)));
-    setConfirmedBoard(newConf);
-    setWordRecords((prev) => {
-      const rec = { ...prev };
-      if (!rec[currentPlayer])
-        rec[currentPlayer] = {
-          longestWord: "",
-          longestLen: 0,
-          bestWord: "",
-          bestScore: 0,
-        };
-      for (const w of formedWords) {
-        if (w.word.length > rec[currentPlayer].longestLen) {
-          rec[currentPlayer].longestWord = w.word;
-          rec[currentPlayer].longestLen = w.word.length;
-        }
-      }
-      if (turnScore > rec[currentPlayer].bestScore) {
-        rec[currentPlayer].bestWord = formedWords
-          .map((fw) => fw.word)
-          .join("+");
-        rec[currentPlayer].bestScore = turnScore;
-      }
-      return rec;
-    });
-    addLog(
-      `${players[currentPlayer].name}: ${formedWords.map((w) => w.word).join(", ")} (+${turnScore})`,
-    );
-    setIsFirstMove(false);
-    setConsecutivePasses(0);
-    setChallengeResult(null);
-    setAiMoveDisplay(null);
-    endTurn(false, np, newConf);
-  };
-
-  const endTurn = (wasSkip, updatedPlayers, newConf, updatedTileBag) => {
-    const pls = updatedPlayers || players;
-    const conf = newConf || confirmedBoard;
-    const bag = updatedTileBag || tileBag;
-    setPlacedTiles([]);
-    setFormedWords([]);
-    setTurnScore(0);
-    setSelectedTile(null);
-    if (bag.length === 0 && pls[currentPlayer].rack.length === 0) {
-      endGame(pls);
-      return;
-    }
-    if (wasSkip) {
-      const np = consecutivePasses + 1;
-      setConsecutivePasses(np);
-      if (np >= pls.length * 2) {
-        endGame(pls);
-        return;
-      }
-    }
-    let next = (currentPlayer + 1) % pls.length,
-      attempts = 0;
-    const npArr = [...pls];
-    while (npArr[next].skipPenalty && attempts < pls.length) {
-      npArr[next] = { ...npArr[next], skipPenalty: false };
-      addLog(`${npArr[next].name}: прескокнат (казна)`);
-      next = (next + 1) % pls.length;
-      attempts++;
-    }
-    setPlayers(npArr);
-    setCurrentPlayer(next);
-    setMessage(`${npArr[next].name} — твој ред!`);
-    setScreen("playing");
-    if (npArr[next].type === "ai") {
-      const fm = isFirstMove;
-      setTimeout(() => triggerAIMove(npArr, next, conf, bag, fm), 800);
     }
   };
 
@@ -1038,7 +794,6 @@ export default function MacedonianScrabble({
         setTileBag(state.tileBag ?? []);
         setGameLog(state.gameLog ?? []);
         setIsFirstMove(state.isFirstMove ?? false);
-        setConsecutivePasses(state.consecutivePasses ?? 0);
         setJokerAssignments(state.jokerAssignments ?? {});
         setPlacedTiles([]);
         setFormedWords([]);
@@ -1047,6 +802,7 @@ export default function MacedonianScrabble({
         setDraggedTile(null);
         isPlacingRef.current = false;
 
+        setEndBonuses(state.endBonuses ?? null);
         if (state.status === "gameOver") {
           setScreen("gameOver");
           return;
@@ -1061,23 +817,8 @@ export default function MacedonianScrabble({
       }
       return;
     }
-
-    const returnedTiles = placedTiles.map((placed) => placed.tile);
-    const updatedPlayers = [...players];
-    updatedPlayers[currentPlayer] = {
-      ...updatedPlayers[currentPlayer],
-      rack: [...updatedPlayers[currentPlayer].rack, ...returnedTiles],
-    };
-    const restoredBoard = confirmedBoard.map((row) =>
-      row.map((cell) => (cell ? { ...cell } : null)),
-    );
-
-    addLog(`${players[currentPlayer].name}: пас`);
-    setPlayers(updatedPlayers);
-    setBoard(restoredBoard);
-    isPlacingRef.current = false;
-    endTurn(true, updatedPlayers, restoredBoard);
   };
+
   const exchangeTiles = async () => {
     if (placedTiles.length > 0) {
       setMessage(
@@ -1121,9 +862,9 @@ export default function MacedonianScrabble({
         setCurrentPlayer(state.currentPlayerIndex ?? 0);
         setTileBag(state.tileBag ?? []);
         setGameLog(state.gameLog ?? []);
-        setConsecutivePasses(state.consecutivePasses ?? 0);
         setSelectedTile(null);
         setDraggedTile(null);
+        setEndBonuses(state.endBonuses ?? null);
         if (state.status === "gameOver") {
           setScreen("gameOver");
           return;
@@ -1136,13 +877,7 @@ export default function MacedonianScrabble({
         if (nextPlayer?.type === "ai") {
           setTimeout(
             () =>
-              triggerAIMove(
-                normalizedPlayers,
-                nextIndex,
-                state.confirmedBoard ?? confirmedBoard,
-                state.tileBag ?? [],
-                state.isFirstMove ?? isFirstMove,
-              ),
+              triggerAIMove(normalizedPlayers, nextIndex),
             800,
           );
         }
@@ -1152,241 +887,10 @@ export default function MacedonianScrabble({
       }
       return;
     }
-
-    const np = [...players];
-    const old = [...np[currentPlayer].rack];
-    np[currentPlayer] = {
-      ...np[currentPlayer],
-      score: np[currentPlayer].score - 5,
-    };
-    const { drawn, remainingBag } = drawTiles(tileBag, old.length);
-    const newBag = returnTilesToBag(remainingBag, old);
-    np[currentPlayer] = { ...np[currentPlayer], rack: drawn };
-    setPlayers(np);
-    setTileBag(newBag);
-    addLog(`${players[currentPlayer].name}: замена (-5 п.)`);
-    endTurn(true, np, confirmedBoard, newBag);
   };
 
-  const endGame = async (pls) => {
-    SFX.gameOver();
-    const np = [...pls];
-    // Subtract remaining tile values
-    for (let i = 0; i < np.length; i++) {
-      const rem = np[i].rack.reduce((s, t) => s + t.points, 0);
-      np[i] = { ...np[i], score: Math.max(0, np[i].score - rem) };
-    }
+  if (!hasServerGame) return null;
 
-    // Calculate end-game bonuses from wordRecords
-    const LONGEST_BONUS = 15;
-    const BESTSCORE_BONUS = 10;
-    const bonuses = {};
-    let globalLongestLen = 0,
-      globalBestScore = 0;
-    let longestPlayers = [],
-      bestScorePlayers = [];
-
-    // Find global bests
-    for (let i = 0; i < np.length; i++) {
-      const rec = wordRecords[i];
-      if (!rec) continue;
-      if (rec.longestLen > globalLongestLen) {
-        globalLongestLen = rec.longestLen;
-        longestPlayers = [i];
-      } else if (rec.longestLen === globalLongestLen && globalLongestLen > 0)
-        longestPlayers.push(i);
-      if (rec.bestScore > globalBestScore) {
-        globalBestScore = rec.bestScore;
-        bestScorePlayers = [i];
-      } else if (rec.bestScore === globalBestScore && globalBestScore > 0)
-        bestScorePlayers.push(i);
-    }
-
-    // Award bonuses
-    for (const pi of longestPlayers) {
-      if (!bonuses[pi]) bonuses[pi] = { longest: 0, bestScore: 0 };
-      bonuses[pi].longest = LONGEST_BONUS;
-      np[pi] = { ...np[pi], score: np[pi].score + LONGEST_BONUS };
-    }
-    for (const pi of bestScorePlayers) {
-      if (!bonuses[pi]) bonuses[pi] = { longest: 0, bestScore: 0 };
-      bonuses[pi].bestScore = BESTSCORE_BONUS;
-      np[pi] = { ...np[pi], score: np[pi].score + BESTSCORE_BONUS };
-    }
-
-    const bonusInfo = {
-      longestPlayers: longestPlayers.map((i) => ({
-        name: np[i].name,
-        word: wordRecords[i]?.longestWord,
-        len: globalLongestLen,
-        bonus: LONGEST_BONUS,
-      })),
-      bestScorePlayers: bestScorePlayers.map((i) => ({
-        name: np[i].name,
-        word: wordRecords[i]?.bestWord,
-        score: globalBestScore,
-        bonus: BESTSCORE_BONUS,
-      })),
-      playerBonuses: bonuses,
-    };
-    setEndBonuses(bonusInfo);
-    setTimeout(() => SFX.bonusAwarded(), 1200);
-
-    setPlayers(np);
-    setScreen("gameOver");
-    const maxS = Math.max(...np.map((p) => p.score));
-    setMessage(
-      `🏆 ${np
-        .filter((p) => p.score === maxS)
-        .map((w) => w.name)
-        .join(" и ")} победи!`,
-    );
-    setLeaderboard(await loadLeaderboard());
-  };
-  endGameRef.current = endGame;
-
-  // ═══════════════════════════════════════════
-  // HOME
-  // ═══════════════════════════════════════════
-  if (screen === "home")
-    return (
-      <div className="scrabble-page scrabble-page--centered scrabble-home">
-        <div
-          className="scrabble-card"
-          style={{
-            padding: "52px 44px",
-            maxWidth: 440,
-            width: "100%",
-            textAlign: "center",
-            position: "relative",
-            zIndex: 1,
-          }}
-        >
-          <div
-            className="home-eyebrow"
-            style={{
-              fontSize: 11,
-              letterSpacing: 6,
-              fontWeight: 600,
-              marginBottom: 12,
-              textTransform: "uppercase",
-              opacity: 0.8,
-            }}
-          >
-            Македонско Издание
-          </div>
-          <div
-            className="home-wordmark"
-            style={{
-              fontFamily: "'Space Mono', monospace",
-              fontSize: 52,
-              fontWeight: 700,
-              letterSpacing: 6,
-              marginBottom: 8,
-            }}
-          >
-            СКРАБЛ
-          </div>
-          <div
-            className="home-divider"
-            style={{
-              width: 48,
-              height: 3,
-              borderRadius: 2,
-              margin: "0 auto 40px",
-            }}
-          />
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <button
-              className="scrabble-button scrabble-button--primary home-btn"
-              onClick={() => setScreen("setup")}
-              style={{
-                padding: "14px 24px",
-                fontSize: 15,
-                letterSpacing: 1,
-                transition: "all 0.2s",
-              }}
-            >
-              🎮 Нова Игра
-            </button>
-            <button
-              className="scrabble-button scrabble-button--outline home-btn-o"
-              onClick={() => {
-                loadLeaderboard().then(setLeaderboard);
-                setScreen("leaderboard");
-              }}
-              style={{
-                padding: "14px 24px",
-                fontSize: 15,
-                transition: "all 0.2s",
-              }}
-            >
-              🏆 Табла на Најдобри
-            </button>
-          </div>
-
-          <div
-            style={{
-              marginTop: 36,
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 8,
-            }}
-          >
-            {[
-              { icon: "🖱️", text: "Drag & Drop плочки" },
-              { icon: "🤖", text: "AI проверка на зборови" },
-              { icon: "📖", text: "Инфо за секој збор" },
-              { icon: "👥", text: "2-4 играчи + AI" },
-            ].map((f, i) => (
-              <div
-                key={i}
-                className="home-feature"
-                style={{
-                  padding: "10px 12px",
-                  fontSize: 11,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                <span className="home-feature-icon">{f.icon}</span>
-                <span>{f.text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-
-  // ═══════════════════════════════════════════
-  // LEADERBOARD
-  // ═══════════════════════════════════════════
-  if (screen === "leaderboard")
-    return (
-      <LeaderboardScreen
-        leaderboard={leaderboard}
-        onBack={() => setScreen("home")}
-      />
-    );
-
-  // ═══════════════════════════════════════════
-  // SETUP
-  // ═══════════════════════════════════════════
-  if (screen === "setup") {
-    return (
-      <SetupScreen
-        players={setupPlayers}
-        setPlayers={setSetupPlayers}
-        onBack={() => setScreen("home")}
-        onStart={startGame}
-      />
-    );
-  }
-
-  // GAME OVER
-  // ═══════════════════════════════════════════
   if (screen === "gameOver") {
     return (
       <GameOverScreen
@@ -1394,21 +898,8 @@ export default function MacedonianScrabble({
         endBonuses={endBonuses}
         message={message}
         gameLog={gameLog}
-        onNewGame={() => {
-          if (hasServerGame) {
-            onLeave?.();
-            return;
-          }
-          setScreen("setup");
-        }}
-        onOpenLeaderboard={() => {
-          if (hasServerGame && openAppLeaderboard) {
-            openAppLeaderboard();
-            return;
-          }
-          loadLeaderboard().then(setLeaderboard);
-          setScreen("leaderboard");
-        }}
+        onNewGame={onLeave}
+        onOpenLeaderboard={openAppLeaderboard}
       />
     );
   }

@@ -1,3 +1,4 @@
+import { formatGameLog } from "../game/formatGameLog.js";
 // ═══════════════════════════════════════════
 // GAME SERVICE
 //
@@ -228,6 +229,6 @@ export const finalizeAITurnAction = (gameId) =>
 
 export const passAITurnAction = (gameId) =>
   withGame(gameId, "server", (s) => {
-    const logEntry = `${s.players[s.currentPlayerIndex].displayName}: пас (AI)`;
+    const logEntry = formatGameLog({ type: "pass", player: s.players[s.currentPlayerIndex] });
     return advanceTurn({ ...s, gameLog: [...s.gameLog, logEntry] }, true);
   });
