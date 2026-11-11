@@ -40,29 +40,12 @@ export function useAIMove({
 
       setAIThinking(true);
       setMessage(`🤖 ${player.name} размислува...`);
-      const result = await generateAIMove(
-        confirmedBoard,
-        player.rack,
-        isFirstMove,
-        player.age,
-      );
-      setAIThinking(false);
-
-      if (result?.error) {
-        setMessage(`AI грешка: ${result.error}`);
-        return;
-      }
-
       if (gameId) {
         try {
           const response = await fetch(`/api/games/${gameId}/ai-turn`, {
             method: "POST",
             credentials: "include",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              pass: Boolean(result?.pass || !result?.placements?.length),
-              placements: result?.placements ?? [],
-            }),
           });
           const data = await response.json();
           if (!response.ok || !data.success) {
@@ -89,8 +72,7 @@ export function useAIMove({
             data.passed
               ? null
               : {
-                  word: result.word,
-                  explanation: result.explanation,
+                  word: data.word,
                   score: data.score ?? 0,
                   words: (data.words ?? []).map((word) => word.word).join(", "),
                 },
@@ -100,7 +82,22 @@ export function useAIMove({
           setMessage(nextPlayer ? `${nextPlayer.name} — твој ред!` : "");
         } catch (error) {
           setMessage(`AI грешка: ${error.message}`);
+        } finally {
+          setAIThinking(false);
         }
+        return;
+      }
+
+      const result = await generateAIMove(
+        confirmedBoard,
+        player.rack,
+        isFirstMove,
+        player.age,
+      );
+      setAIThinking(false);
+
+      if (result?.error) {
+        setMessage(`AI грешка: ${result.error}`);
         return;
       }
 

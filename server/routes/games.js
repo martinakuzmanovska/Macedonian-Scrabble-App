@@ -12,10 +12,10 @@ import {
   passTurnAction,
   exchangeTilesAction,
   challengeResultAction,
-  applyAIMoveAction,
-  finalizeAITurnAction,
-  passAITurnAction,
 } from "../services/gameService.js";
+
+import { generateValidatedAIMove } from "./aiMove.js";
+import { applyAIMove, finalizeTurn, advanceTurn, passTurn } from "../game/gameEngine.js";
 
 const router = express.Router();
 router.use(requireAuth);
@@ -490,7 +490,6 @@ router.post("/:gameId/exchange", (req, res) =>
 
 router.post("/:gameId/ai-turn", async (req, res) => {
   try {
-    const { placements, pass } = req.body;
     const game = await Game.findOne({ gameId: req.params.gameId });
     if (!game) {
       return res.status(404).json({ success: false, error: "Game not found" });
@@ -509,50 +508,23 @@ router.post("/:gameId/ai-turn", async (req, res) => {
         .status(400)
         .json({ success: false, error: "It is not an AI turn" });
     }
-    if (!pass && !Array.isArray(placements)) {
-      return res
-        .status(400)
-        .json({ success: false, error: "placements array is required" });
+    const state = game.toEngineState();
+    if (state.status !== "playing" || state.pendingBonus || state.placedTiles.length) {
+      return res.status(400).json({ success: false, error: "Game is not ready for an AI turn" });
     }
-
-    const applied = pass
-      ? await passAITurnAction(req.params.gameId)
-      : await applyAIMoveAction(req.params.gameId, placements);
-
-    if (typeof applied === "string") {
-      return res.status(400).json({ success: false, error: applied });
-    }
-
-    if (!pass && !applied.state.placedTiles?.length) {
-      const skipped = await passAITurnAction(req.params.gameId);
-      if (typeof skipped === "string") {
-        return res.status(400).json({ success: false, error: skipped });
-      }
-      return res.json({
-        success: true,
-        state: safeState(skipped.state),
-        passed: true,
-      });
-    }
-
-    if (pass) {
-      return res.json({
-        success: true,
-        state: safeState(applied.state),
-        passed: true,
-      });
-    }
-
-    const finalized = await finalizeAITurnAction(req.params.gameId);
-    if (typeof finalized === "string") {
-      return res.status(400).json({ success: false, error: finalized });
-    }
-
+    const move = await generateValidatedAIMove({
+      boardState: state.confirmedBoard, rack: currentPlayer.rack,
+      age: currentPlayer.age, requestId: req.requestId,
+    });
+    const applied = move.pass ? state : applyAIMove(state, move.placements);
+    const score = move.pass ? 0 : applied.turnScore;
+    const words = move.pass ? [] : applied.formedWords;
+    const nextState = move.pass ? passTurn(state) : advanceTurn(finalizeTurn(applied));
+    Object.assign(game, Game.fromEngineState(nextState));
+    await game.save();
     return res.json({
-      success: true,
-      state: safeState(finalized.state),
-      score: applied.state.turnScore,
-      words: applied.state.formedWords,
+      success: true, state: safeState(game.toEngineState()),
+      passed: move.pass, score, words, word: move.word,
     });
   } catch (err) {
     console.error("ai-turn error:", err);

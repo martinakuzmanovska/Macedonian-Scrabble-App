@@ -1,5 +1,5 @@
 import Word from "../models/Word.js";
-import { scrapeWord } from "./scraper.js";
+import { scrapeWord, isRelatedWordPlaceholder } from "./scraper.js";
 
 export async function challengeWord(wordRaw) {
   const word = wordRaw.toLowerCase().trim();
@@ -12,9 +12,11 @@ export async function challengeWord(wordRaw) {
   const cached = await Word.findOne({ word });
 
   if (cached) {
+    // Older scraper versions cached definition-less related-word results as valid.
+    const placeholder = isRelatedWordPlaceholder(cached.definition);
     return {
-      valid: cached.valid,
-      definition: cached.definition,
+      valid: cached.valid && !placeholder,
+      definition: placeholder ? null : cached.definition,
       cached: true
     };
   }

@@ -1,6 +1,12 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 
+export function isRelatedWordPlaceholder(definition) {
+  return /^Зборот е поврзан со\s*:?$/iu.test(
+    (definition || "").replace(/\s+/gu, " ").trim(),
+  );
+}
+
 export async function scrapeWord(word) {
   const url = `https://makedonski.gov.mk/corpus/s?q=${word}`; // raw Cyrillic, no encoding
 
@@ -45,6 +51,11 @@ export async function scrapeWord(word) {
 
   // Get definition from the <p> tag
   const definition = firstBlock.find('p.m-0.p-0.pt-5').text().trim();
+
+  // Search also returns related-word placeholders without a dictionary entry.
+  if (isRelatedWordPlaceholder(definition)) {
+    return { valid: false, definition: null };
+  }
 
   return {
     valid: true,
