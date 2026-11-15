@@ -1,5 +1,6 @@
 ﻿import test from "node:test";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import mongoose from "mongoose";
 import express from "express";
 import gamesRouter from "../routes/games.js";
@@ -11,7 +12,8 @@ import { createGame } from "../services/gameService.js";
 import { readDictionary, usableDefinition, normalizeWord } from "../services/personalDictionary.js";
 
 test("verified challenge, retry, owner isolation and durable recovery", async () => {
-  await mongoose.connect("mongodb://127.0.0.1:27017/scrabble_dictionary_test");
+  const dbName = `scrabble_dictionary_test_${randomUUID().replaceAll("-", "")}`;
+  await mongoose.connect(`mongodb://127.0.0.1:27017/${dbName}`, { serverSelectionTimeoutMS: 3000 });
   await PersonalDictionary.init();
   const owner = new mongoose.Types.ObjectId(), author = new mongoose.Types.ObjectId();
   const app = express(); app.use(express.json());
@@ -81,7 +83,10 @@ test("verified challenge, retry, owner isolation and durable recovery", async ()
   } finally {
     await Game.deleteMany({ _id: { $in: ids } });
     await PersonalDictionary.deleteMany({ ownerId: owner });
-    await Word.deleteOne({ word: "ма" });
-    server.close(); await mongoose.disconnect();
+    await Word.deleteMany({ word: { $in: ["ма", "им"] } });
+    server.close();
+    if (mongoose.connection.name !== dbName) throw new Error("Unexpected test database");
+    await mongoose.connection.dropDatabase();
+    await mongoose.disconnect();
   }
 });

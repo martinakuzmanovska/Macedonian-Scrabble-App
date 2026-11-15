@@ -4,7 +4,9 @@
   "main": "app.js",
   "type": "module",
   "scripts": {
-    "start": "node app.js"
+    "start": "node app.js",
+    "test": "node --test game/formatGameLog.test.js services/personalDictionary.test.js test/multiplayerDictionary.test.js",
+    "test:browser": "python test/profileBrowser.py"
   },
   "keywords": [],
   "author": "",
