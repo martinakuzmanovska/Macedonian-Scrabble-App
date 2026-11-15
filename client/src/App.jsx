@@ -3,14 +3,16 @@ import { useAuth } from "./hooks/useAuth.js";
 import { useGame } from "./hooks/useGame.js";
 import LoginScreen from "./components/LoginScreen.jsx";
 import HomePage from "./components/HomePage.jsx";
+import ProfileView from "./components/ProfileView.jsx";
 import InviteScreen from "./components/InviteScreen.jsx";
 import MacedonianScrabble from "./scrabble.jsx";
 import { loadLeaderboard } from "./services/leaderboardService.js";
 import "./components/LeaderboardModal.css";
 
 const PENDING_ACTION_KEY = "mk-scrabble-pending-action";
+const PROFILE_RETURN_KEY = "mk-scrabble-profile-return";
 
-function AppNavbar({ user, onLogin, onLogout, onOpenLeaderboard }) {
+function AppNavbar({ user, onLogin, onLogout, onOpenLeaderboard, onOpenProfile }) {
   return (
     <nav className="app-navbar" aria-label="Main navigation">
       <div className="app-navbar-brand">СКРАБЛ</div>
@@ -47,6 +49,12 @@ function AppNavbar({ user, onLogin, onLogout, onOpenLeaderboard }) {
       <div className="app-navbar-actions">
         {user ? (
           <>
+            <button
+              className="app-navbar-button app-navbar-logout"
+              onClick={onOpenProfile}
+            >
+              Мој профил
+            </button>
             <button
               className="app-navbar-button app-navbar-leaderboard"
               onClick={onOpenLeaderboard}
@@ -162,6 +170,32 @@ export default function App() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  const [showProfile, setShowProfile] = useState(() =>
+    window.location.hash === "#profile" || sessionStorage.getItem(PROFILE_RETURN_KEY) === "true",
+  );
+
+  const closeProfile = useCallback(() => {
+    setShowProfile(false);
+    sessionStorage.removeItem(PROFILE_RETURN_KEY);
+    if (window.location.hash === "#profile") {
+      window.history.replaceState({}, "", window.location.pathname + window.location.search);
+    }
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    closeProfile();
+    return logout();
+  }, [closeProfile, logout]);
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const isProfile = window.location.hash === "#profile";
+      setShowProfile(isProfile);
+      if (!isProfile) sessionStorage.removeItem(PROFILE_RETURN_KEY);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
   const [pendingAction, setPendingAction] = useState(() => {
     try {
       const stored = sessionStorage.getItem(PENDING_ACTION_KEY);
@@ -247,6 +281,15 @@ export default function App() {
   if (gameLoading && !gameState) return <LoadingScreen />;
 
   const content = (() => {
+    if (!user && showProfile) {
+      return (
+        <LoginScreen
+          onBack={closeProfile}
+          message="Најави се за да го видиш твојот профил и речник."
+          onBeforeLogin={() => sessionStorage.setItem(PROFILE_RETURN_KEY, "true")}
+        />
+      );
+    }
     if (user && gameState) {
       const status = gameState.status;
 
@@ -271,7 +314,7 @@ export default function App() {
             loadLeaderboard().then(setLeaderboard);
             setShowLeaderboard(true);
           }}
-          onLogout={logout}
+          onLogout={handleLogout}
         />
       );
     }
@@ -298,13 +341,20 @@ export default function App() {
       <AppNavbar
         user={user}
         onLogin={() => setShowLogin(true)}
-        onLogout={logout}
+        onLogout={handleLogout}
+        onOpenProfile={() => {
+          setShowProfile(true);
+          window.location.hash = "profile";
+        }}
         onOpenLeaderboard={() => {
           loadLeaderboard().then(setLeaderboard);
           setShowLeaderboard(true);
         }}
       />
       <div style={{ width: "100%" }}>{content}</div>
+      {user && showProfile && (
+        <ProfileView key={user.id ?? user._id} user={user} onClose={closeProfile} />
+      )}
       {showLeaderboard && (
         <LeaderboardModal
           leaderboard={leaderboard}
