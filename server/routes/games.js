@@ -44,7 +44,7 @@ function getLongestFormedWord(formedWords) {
 
 async function maybeBonus(game, newState, score, moverIndex, word) {
   const hist = game.scoreHistory ?? [];
-  const average = 18;
+  const average = 10;
 
   newState.scoreHistory = [...hist, score];
   if (game.gameMode !== "bonus" || score <= average || !word) {
