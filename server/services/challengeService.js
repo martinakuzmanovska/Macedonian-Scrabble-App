@@ -31,7 +31,12 @@ export async function challengeWord(wordRaw) {
     definition: result.definition
   });
 
-  await newEntry.save();
+  try {
+    await newEntry.save();
+  } catch (error) {
+    if (error.code !== 11000) throw error;
+    return challengeWord(word);
+  }
 
   // 4️⃣ Return result
   return {

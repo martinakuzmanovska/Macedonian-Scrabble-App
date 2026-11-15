@@ -171,6 +171,8 @@ async function withGame(gameId, userId, fn) {
     }
   }
 
+  if (state.status === "challenge") return "Resolve the pending move first.";
+
   const newState = fn(state);
   if (typeof newState === "string") return newState; // engine returned error
 

@@ -158,7 +158,7 @@ export default function ChallengeModal({
                     📖
                   </button>
                   <button
-                    onClick={() => challengeWord(w.word)}
+                    onClick={() => challengeWord(w.word, i)}
                     style={{
                       borderRadius: 0,
                       border: "none",

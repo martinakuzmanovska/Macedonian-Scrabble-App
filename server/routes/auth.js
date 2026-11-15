@@ -1,3 +1,5 @@
+import { requireAuth } from "../middleware/requireAuth.js";
+import { readDictionary } from "../services/personalDictionary.js";
 import express from "express";
 import passport from "passport";
 
@@ -44,6 +46,16 @@ router.get("/me", (req, res) => {
     });
   }
   return res.status(401).json({ user: null });
+});
+
+router.get("/me/dictionary", requireAuth, async (req, res) => {
+  try {
+    const words = await readDictionary(req.user._id);
+    return res.json({ success: true, words });
+  } catch (error) {
+    console.error("dictionary read error:", error);
+    return res.status(503).json({ success: false, error: "Dictionary recovery temporarily unavailable; retry" });
+  }
 });
 
 export default router;

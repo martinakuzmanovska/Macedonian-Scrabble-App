@@ -86,6 +86,7 @@ export default function MacedonianScrabble({
 
   // Stable refs so polling closure always reads current values
   const initialStateRef = useRef(initialGameState);
+  const pendingMoveIdRef = useRef(initialGameState?.pendingMoveId ?? null);
   const gameIdRef = useRef(initialGameState?.gameId ?? null);
   const isMyTurnRef = useRef(false);
   const isPlacingRef = useRef(false);
@@ -146,6 +147,7 @@ export default function MacedonianScrabble({
         return;
       }
       showingChallengeResultRef.current = false;
+      pendingMoveIdRef.current = s.pendingMoveId ?? null;
       const normalizedPlayers = (s.players ?? []).map((p) => ({
         ...p,
         name: p.displayName || p.name || "Играч",
@@ -507,6 +509,7 @@ export default function MacedonianScrabble({
         );
         const data = await res.json();
         if (data.success) {
+          pendingMoveIdRef.current = data.state?.pendingMoveId ?? null;
           isPlacingRef.current = false;
           if (["playing", "gameOver"].includes(data.state?.status)) {
             const serverState = data.state;
@@ -565,12 +568,24 @@ export default function MacedonianScrabble({
     }
   };
 
-  const challengeWord = async (word) => {
+  const challengeWord = async (word, wordIndex) => {
     setIsValidating(true);
     setChallengeResult(null);
     setMessage(`🤖 Агент пребарува "${word}" во речници...`);
     try {
-      const result = await validateWordWithAI(word);
+      let resolution;
+      let result;
+      if (hasServerGame) {
+        const response = await fetch(`/api/games/${initialGameState.gameId}/challenge-result`, {
+          method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pendingMoveId: pendingMoveIdRef.current, wordIndex }),
+        });
+        resolution = await response.json();
+        if (!response.ok || !resolution.success) throw new Error(resolution.error || "Challenge failed; retry");
+        result = resolution.result;
+      } else {
+        result = await validateWordWithAI(word);
+      }
 
       if (result.valid === true) {
         SFX.challengeValid();
@@ -579,16 +594,7 @@ export default function MacedonianScrabble({
 
         if (hasServerGame && initialGameState?.gameId) {
           // Tell server: challenge failed (word IS valid) — challenger loses next turn
-          const res = await fetch(
-            `/api/games/${initialGameState.gameId}/challenge-result`,
-            {
-              method: "POST",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ word, valid: true }),
-            },
-          );
-          const data = await res.json();
+          const data = resolution;
           if (data.success) {
             setMessage(
               `✅ "${word}" е валиден! Предизвикувачот го губи следниот ред.`,
@@ -602,16 +608,7 @@ export default function MacedonianScrabble({
 
         if (hasServerGame && initialGameState?.gameId) {
           // Tell server: challenge succeeded (word is INVALID) — return tiles to Player 1
-          const res = await fetch(
-            `/api/games/${initialGameState.gameId}/challenge-result`,
-            {
-              method: "POST",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ word, valid: false }),
-            },
-          );
-          const data = await res.json();
+          const data = resolution;
           if (data.success) {
             const s = data.state;
             const normalizedPlayers = (s.players ?? []).map((p) => ({

@@ -102,6 +102,9 @@ const gameSchema = new mongoose.Schema({
   turnScore: { type: Number, default: 0 },
   formedWordsJSON: { type: String, default: "[]" },
 
+  pendingMoveId: { type: String, default: null },
+  challengeReceipts: { type: [mongoose.Schema.Types.Mixed], default: [] },
+
   // Game flow
   isFirstMove: { type: Boolean, default: true },
   consecutivePasses: { type: Number, default: 0 },
@@ -163,6 +166,7 @@ gameSchema.methods.toEngineState = function () {
     gameMode: plain.gameMode ?? "classic",
     scoreHistory: plain.scoreHistory ?? [],
     pendingBonus: plain.pendingBonus ?? null,
+    pendingMoveId: plain.pendingMoveId ?? null,
     players: plain.players.map((player) => ({
       ...player,
       name: player.displayName,
