@@ -24,11 +24,12 @@ export function useAuth() {
   }, []);
 
   const logout = useCallback(async () => {
+    // Remove account-scoped views immediately, even while the request is pending.
+    setUser(null);
     await fetch("/api/auth/logout", {
       method: "POST",
       credentials: "include",
     });
-    setUser(null);
   }, []);
 
   return { user, loading, logout };

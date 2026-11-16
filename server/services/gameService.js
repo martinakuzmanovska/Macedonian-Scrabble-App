@@ -1,3 +1,4 @@
+import { formatGameLog } from "../game/formatGameLog.js";
 // ═══════════════════════════════════════════
 // GAME SERVICE
 //
@@ -156,7 +157,7 @@ export async function saveGame(doc, state) {
 //   4. Saves the result
 //   5. Returns { doc, state } or an error string
 
-async function withGame(gameId, userId, fn) {
+async function withGame(gameId, userId, fn, { allowPending = false } = {}) {
   const loaded = await loadGame(gameId);
   if (!loaded) return "Game not found.";
 
@@ -169,6 +170,8 @@ async function withGame(gameId, userId, fn) {
       return "It is not your turn.";
     }
   }
+
+  if (state.status === "challenge" && !allowPending) return "Resolve the pending move first.";
 
   const newState = fn(state);
   if (typeof newState === "string") return newState; // engine returned error
@@ -202,7 +205,7 @@ export const confirmPlacementAction = (gameId, userId) =>
   });
 
 export const finalizeTurnAction = (gameId, userId) =>
-  withGame(gameId, userId, (s) => advanceTurn(finalizeTurn(s), false));
+  withGame(gameId, userId, (s) => advanceTurn(finalizeTurn(s), false), { allowPending: true });
 
 export const passTurnAction = (gameId, userId) =>
   withGame(gameId, userId, (s) => passTurn(s));
@@ -228,6 +231,6 @@ export const finalizeAITurnAction = (gameId) =>
 
 export const passAITurnAction = (gameId) =>
   withGame(gameId, "server", (s) => {
-    const logEntry = `${s.players[s.currentPlayerIndex].displayName}: пас (AI)`;
+    const logEntry = formatGameLog({ type: "pass", player: s.players[s.currentPlayerIndex] });
     return advanceTurn({ ...s, gameLog: [...s.gameLog, logEntry] }, true);
   });

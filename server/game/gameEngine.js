@@ -1,3 +1,4 @@
+import { formatGameLog } from "./formatGameLog.js";
 // ═══════════════════════════════════════════
 // MACEDONIAN SCRABBLE — GAME ENGINE
 //
@@ -437,7 +438,7 @@ export function finalizeTurn(state) {
   }
 
   // Build a log entry
-  const logEntry = `${players[currentPlayerIndex].name}: ${formedWords.map((w) => w.word).join(", ")} (+${turnScore})`;
+  const logEntry = formatGameLog({ type: "move", player: players[currentPlayerIndex], words: formedWords, score: turnScore });
 
   return {
     ...state,
@@ -486,7 +487,7 @@ export function advanceTurn(state, wasSkip = false) {
   let attempts = 0;
   const updatedPlayers = [...players];
   while (updatedPlayers[next].skipPenalty && attempts < players.length) {
-    const logEntry = `${updatedPlayers[next].name}: прескокнат (казна)`;
+    const logEntry = formatGameLog({ type: "skip", player: updatedPlayers[next] });
     updatedPlayers[next] = { ...updatedPlayers[next], skipPenalty: false };
     next = (next + 1) % players.length;
     attempts++;
@@ -514,7 +515,7 @@ export function advanceTurn(state, wasSkip = false) {
  * @returns {GameState}
  */
 export function passTurn(state) {
-  const logEntry = `${state.players[state.currentPlayerIndex].name}: пас`;
+  const logEntry = formatGameLog({ type: "pass", player: state.players[state.currentPlayerIndex] });
   const withLog = { ...state, gameLog: [...state.gameLog, logEntry] };
   const returned = returnAllPlacedTiles(withLog); // safety: clear anything placed
   return advanceTurn(returned, true);
@@ -552,7 +553,7 @@ export function exchangeTiles(state) {
     return { ...p, score: p.score - 5, rack: drawn };
   });
 
-  const logEntry = `${player.name}: замена (-5 п.)`;
+  const logEntry = formatGameLog({ type: "exchange", player });
 
   return advanceTurn(
     {
@@ -597,7 +598,7 @@ export function applyChallengeResult(state, isValid) {
       return { ...p, skipPenalty: true };
     });
 
-    const logEntry = `🔍 "${state.formedWords.map((w) => w.word).join(", ")}" потврден — ${updatedPlayers[challengerIdx].name} казнет`;
+    const logEntry = formatGameLog({ type: "challenge-valid", player: updatedPlayers[challengerIdx], words: state.formedWords });
     return {
       ...state,
       players: updatedPlayers,
@@ -605,7 +606,7 @@ export function applyChallengeResult(state, isValid) {
     };
   } else {
     // Word invalid — return tiles, current player loses turn
-    const logEntry = `🔍 "${state.formedWords.map((w) => w.word).join(", ")}" одбиен`;
+    const logEntry = formatGameLog({ type: "challenge-invalid", player: state.players[state.currentPlayerIndex] });
     const withLog = { ...state, gameLog: [...state.gameLog, logEntry] };
     return returnAllPlacedTiles(withLog);
   }

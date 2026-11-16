@@ -1,7 +1,8 @@
 import "./LoginScreen.css";
 
-export default function LoginScreen({ onBack }) {
+export default function LoginScreen({ onBack, onBeforeLogin, message }) {
   const handleLogin = () => {
+    onBeforeLogin?.();
     window.location.href = "/api/auth/google";
   };
 
@@ -14,7 +15,7 @@ export default function LoginScreen({ onBack }) {
         <p className="login-kicker">МАКЕДОНСКО ИЗДАНИЕ</p>
         <h1 className="login-title">СКРАБЛ</h1>
         <p className="login-copy">
-          Најави се за да започнеш игра или да се приклучиш со код.
+          {message || "Најави се за да започнеш игра или да се приклучиш со код."}
         </p>
         <button className="login-google-button" onClick={handleLogin}>
           <GoogleIcon />

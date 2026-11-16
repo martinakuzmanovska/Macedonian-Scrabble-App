@@ -1,0 +1,29 @@
+.profile-dialog {
+  width: min(720px, calc(100% - 24px));
+  max-height: calc(100dvh - 32px);
+  padding: clamp(20px, 4vw, 36px);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: var(--surface-shadow);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.profile-dialog::backdrop { background: oklch(0.2 0.02 150 / 0.4); }
+.profile-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
+.profile-header h1 { margin: 6px 0 0; font-size: clamp(22px, 5vw, 30px); overflow-wrap: anywhere; }
+.profile-eyebrow { margin: 0; color: var(--primary); font-size: 12px; font-weight: 700; }
+.profile-dialog h2 { margin: 0; font-size: 22px; }
+.profile-description, .profile-result-count { color: var(--muted-foreground); font-size: 14px; line-height: 1.6; }
+.profile-search { display: grid; gap: 8px; margin-top: 24px; font-size: 14px; font-weight: 600; }
+.profile-search input { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--card); color: var(--foreground); }
+.profile-dialog :is(input, button, summary):focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.profile-state { padding: 20px; border-radius: 10px; background: var(--secondary); color: var(--muted-foreground); line-height: 1.7; }
+.profile-words { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.profile-word { padding: 20px; border: 1px solid var(--border); border-radius: 12px; overflow-wrap: anywhere; }
+.profile-word h3 { margin: 0; color: var(--primary); font-size: 20px; }
+.profile-definition { white-space: pre-wrap; line-height: 1.7; }
+.profile-word summary { cursor: pointer; color: var(--primary); font-size: 14px; font-weight: 600; padding: 8px 0; }
+.profile-challenges { list-style: none; margin: 8px 0 0; padding: 0; }
+.profile-challenges li { display: grid; gap: 6px; padding: 14px 0; border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: 13px; line-height: 1.5; }

@@ -1,3 +1,7 @@
+import { randomUUID } from "node:crypto";
+import { challengeWord as lookupChallenge } from "../services/challengeService.js";
+import { deliverDictionaryEvent, usableDefinition } from "../services/personalDictionary.js";
+import { formatGameLog } from "../game/formatGameLog.js";
 import express from "express";
 import { requireAuth } from "../middleware/requireAuth.js";
 import Game from "../models/Game.js";
@@ -11,11 +15,10 @@ import {
   finalizeTurnAction,
   passTurnAction,
   exchangeTilesAction,
-  challengeResultAction,
-  applyAIMoveAction,
-  finalizeAITurnAction,
-  passAITurnAction,
 } from "../services/gameService.js";
+
+import { generateValidatedAIMove } from "./aiMove.js";
+import { applyAIMove, finalizeTurn, advanceTurn, passTurn, findFormedWords } from "../game/gameEngine.js";
 
 const router = express.Router();
 router.use(requireAuth);
@@ -43,7 +46,7 @@ function getLongestFormedWord(formedWords) {
 
 async function maybeBonus(game, newState, score, moverIndex, word) {
   const hist = game.scoreHistory ?? [];
-  const average = 18;
+  const average = 10;
 
   newState.scoreHistory = [...hist, score];
   if (game.gameMode !== "bonus" || score <= average || !word) {
@@ -238,6 +241,14 @@ router.get("/:gameId", async (req, res) => {
         .json({ success: false, error: "Not in this game" });
     }
 
+    // Give already-pending games from before this feature a stable retry identity.
+    if (game.status === "challenge" && !game.pendingMoveId) {
+      const migrated = await Game.findOneAndUpdate(
+        { _id: game._id, status: "challenge", pendingMoveId: null },
+        { $set: { pendingMoveId: randomUUID() } }, { returnDocument: "after" },
+      );
+      game.pendingMoveId = migrated?.pendingMoveId ?? (await Game.findById(game._id)).pendingMoveId;
+    }
     const state = safeState(game.toEngineState());
     res.json({ success: true, gameId: game.gameId, state });
   } catch (err) {
@@ -316,18 +327,19 @@ router.post("/:gameId/confirm", async (req, res) => {
 
     const { placedTiles, board, turnScore, formedWords } = req.body;
 
+    if (state.status !== "playing") return res.status(409).json({ success: false, error: "Move is not ready to confirm" });
+
     // Save the pending move and enter challenge phase
     const newState = {
       ...state,
       board: board ?? state.board,
       placedTiles: placedTiles ?? [],
       turnScore: Number(turnScore) || 0,
-      formedWords: (formedWords ?? []).map((w) =>
-        typeof w === "string" ? { word: w, cells: [] } : w,
-      ),
+      formedWords: findFormedWords(board ?? state.board, placedTiles ?? []),
       status: "challenge",
     };
 
+    game.pendingMoveId = randomUUID();
     Object.assign(game, Game.fromEngineState(newState));
     await game.save();
 
@@ -395,6 +407,7 @@ router.post("/:gameId/finalize", async (req, res) => {
         .json({ success: false, error: "Wait for opponent to accept" });
     }
 
+    if (state.status !== "challenge" || !game.pendingMoveId) return res.status(409).json({ success: false, error: "No pending move" });
     const score = state.turnScore || 0;
     const placedTiles = state.placedTiles || [];
 
@@ -423,13 +436,9 @@ router.post("/:gameId/finalize", async (req, res) => {
     );
 
     // Log
-    const wordStr = (state.formedWords ?? [])
-      .map((w) => w.word || w)
-      .join(", ");
-    const cpName = state.players[state.currentPlayerIndex].displayName;
     const newLog = [
       ...(state.gameLog ?? []),
-      `${cpName}: ${wordStr} (+${score})`,
+      formatGameLog({ type: "move", player: state.players[state.currentPlayerIndex], words: state.formedWords ?? [], score }),
     ];
 
     // Advance to next player
@@ -466,15 +475,15 @@ router.post("/:gameId/finalize", async (req, res) => {
       state.currentPlayerIndex,
       getLongestFormedWord(state.formedWords),
     );
-    Object.assign(game, Game.fromEngineState(newState));
-    await game.save();
+    const committed = await Game.findOneAndUpdate({ _id: game._id, status: "challenge", pendingMoveId: game.pendingMoveId }, { $set: { ...Game.fromEngineState(newState), pendingMoveId: null } }, { returnDocument: "after" });
+    if (!committed) return res.status(409).json({ success: false, error: "Move already resolved" });
     console.log(
       `Finalized: game=${game.gameId} next=${next} bag=${bagCopy.length}`,
     );
     res.json({
       success: true,
       gameId: game.gameId,
-      state: safeState(game.toEngineState()),
+      state: safeState(committed.toEngineState()),
     });
   } catch (err) {
     console.error("finalize error:", err);
@@ -490,7 +499,6 @@ router.post("/:gameId/exchange", (req, res) =>
 
 router.post("/:gameId/ai-turn", async (req, res) => {
   try {
-    const { placements, pass } = req.body;
     const game = await Game.findOne({ gameId: req.params.gameId });
     if (!game) {
       return res.status(404).json({ success: false, error: "Game not found" });
@@ -509,50 +517,23 @@ router.post("/:gameId/ai-turn", async (req, res) => {
         .status(400)
         .json({ success: false, error: "It is not an AI turn" });
     }
-    if (!pass && !Array.isArray(placements)) {
-      return res
-        .status(400)
-        .json({ success: false, error: "placements array is required" });
+    const state = game.toEngineState();
+    if (state.status !== "playing" || state.pendingBonus || state.placedTiles.length) {
+      return res.status(400).json({ success: false, error: "Game is not ready for an AI turn" });
     }
-
-    const applied = pass
-      ? await passAITurnAction(req.params.gameId)
-      : await applyAIMoveAction(req.params.gameId, placements);
-
-    if (typeof applied === "string") {
-      return res.status(400).json({ success: false, error: applied });
-    }
-
-    if (!pass && !applied.state.placedTiles?.length) {
-      const skipped = await passAITurnAction(req.params.gameId);
-      if (typeof skipped === "string") {
-        return res.status(400).json({ success: false, error: skipped });
-      }
-      return res.json({
-        success: true,
-        state: safeState(skipped.state),
-        passed: true,
-      });
-    }
-
-    if (pass) {
-      return res.json({
-        success: true,
-        state: safeState(applied.state),
-        passed: true,
-      });
-    }
-
-    const finalized = await finalizeAITurnAction(req.params.gameId);
-    if (typeof finalized === "string") {
-      return res.status(400).json({ success: false, error: finalized });
-    }
-
+    const move = await generateValidatedAIMove({
+      boardState: state.confirmedBoard, rack: currentPlayer.rack,
+      age: currentPlayer.age, requestId: req.requestId,
+    });
+    const applied = move.pass ? state : applyAIMove(state, move.placements);
+    const score = move.pass ? 0 : applied.turnScore;
+    const words = move.pass ? [] : applied.formedWords;
+    const nextState = move.pass ? passTurn(state) : advanceTurn(finalizeTurn(applied));
+    Object.assign(game, Game.fromEngineState(nextState));
+    await game.save();
     return res.json({
-      success: true,
-      state: safeState(finalized.state),
-      score: applied.state.turnScore,
-      words: applied.state.formedWords,
+      success: true, state: safeState(game.toEngineState()),
+      passed: move.pass, score, words, word: move.word,
     });
   } catch (err) {
     console.error("ai-turn error:", err);
@@ -560,29 +541,57 @@ router.post("/:gameId/ai-turn", async (req, res) => {
   }
 });
 
-router.post("/:gameId/challenge", (req, res) => {
-  const { isValid } = req.body;
-  handleAction(
-    res,
-    challengeResultAction(req.params.gameId, req.user._id, isValid),
-  );
-});
-
-router.post("/:gameId/challenge-result", async (req, res) => {
+router.post(["/:gameId/challenge-result", "/:gameId/challenge"], async (req, res) => {
   try {
     const game = await Game.findOne({ gameId: req.params.gameId });
     if (!game)
       return res.status(404).json({ success: false, error: "Game not found" });
 
     const state = game.toEngineState();
-    const { valid } = req.body; // true = word valid (challenger loses turn), false = word invalid (tiles return)
+    const { pendingMoveId, wordIndex } = req.body;
+    const ownerId = req.user._id.toString();
+    const challengerIndex = state.players.findIndex(p => p.userId?.toString() === ownerId && p.type === "human");
+    if (challengerIndex < 0) return res.status(403).json({ success: false, error: "Not a human participant" });
+    const receipt = game.challengeReceipts.find(r => r.pendingMoveId === pendingMoveId);
+    if (receipt) {
+      if (receipt.ownerId !== ownerId || receipt.wordIndex !== wordIndex) return res.status(409).json({ success: false, error: "Move already resolved" });
+      await deliverDictionaryEvent(receipt.dictionaryEvent);
+      return res.json({ success: true, gameId: game.gameId, state: safeState(state), result: receipt.result });
+    }
+    const author = state.players[state.currentPlayerIndex];
+    if (challengerIndex === state.currentPlayerIndex || author?.type !== "human" || !author.userId || state.players.some(p => p.type === "ai")) {
+      return res.status(403).json({ success: false, error: "Human multiplayer challenge required" });
+    }
+    if (!pendingMoveId || game.pendingMoveId !== pendingMoveId || state.status !== "challenge") return res.status(409).json({ success: false, error: "Pending move changed" });
+    const words = findFormedWords(state.board, state.placedTiles);
+    if (!Number.isInteger(wordIndex) || !words[wordIndex]) return res.status(400).json({ success: false, error: "Invalid selected word" });
+    const word = words[wordIndex].word;
+    const lookup = await lookupChallenge(word);
+    const { valid } = lookup;
+    if (valid !== true && valid !== false) return res.status(503).json({ success: false, error: "Inconclusive dictionary lookup" });
+    const result = { word, valid, definition: lookup.definition ?? "", source: "makedonski.gov.mk" };
+    const dictionaryEvent = valid && usableDefinition(lookup.definition) ? {
+      eventId: `${game.gameId}:${pendingMoveId}:${wordIndex}`, ownerId, word,
+      definition: lookup.definition.trim(), challengedAt: new Date(), gameId: game.gameId,
+      author: { playerId: author.userId.toString(), displayName: author.displayName },
+    } : null;
+    const newReceipt = { pendingMoveId, wordIndex, ownerId, result, dictionaryEvent };
+    const commit = async (newState) => {
+      const committed = await Game.findOneAndUpdate(
+        { _id: game._id, status: "challenge", pendingMoveId },
+        { $set: { ...Game.fromEngineState(newState), pendingMoveId: null }, $push: { challengeReceipts: newReceipt } },
+        { returnDocument: "after", runValidators: true },
+      );
+      if (!committed) return res.status(409).json({ success: false, error: "Move already resolved; retry to retrieve result" });
+      await deliverDictionaryEvent(dictionaryEvent);
+      return res.json({ success: true, gameId: committed.gameId, state: safeState(committed.toEngineState()), result });
+    };
 
     if (valid === true) {
       // Word IS valid — challenger (the one who challenged) loses next turn
       // The challenger is the opponent of the current player
       //const myIdx = state.players.findIndex(p => p.userId?.toString() === req.user._id.toString());
-      const challengerIndex =
-        (state.currentPlayerIndex + 1) % state.players.length;
+
       const players = state.players.map((p, i) => {
         if (i === challengerIndex) return { ...p, skipPenalty: true };
         return p;
@@ -607,13 +616,9 @@ router.post("/:gameId/challenge-result", async (req, res) => {
       const newConfirmed = state.board.map((r) =>
         r.map((c) => (c ? { ...c } : null)),
       );
-      const wordStr = (state.formedWords ?? [])
-        .map((w) => w.word || w)
-        .join(", ");
-      const cpName = state.players[state.currentPlayerIndex].displayName;
       const newLog = [
         ...(state.gameLog ?? []),
-        `${cpName}: ${wordStr} (+${score}) ✅`,
+        formatGameLog({ type: "move", player: state.players[state.currentPlayerIndex], words: state.formedWords ?? [], score }),
       ];
 
       // Advance — skip the challenger who just lost their turn
@@ -649,13 +654,7 @@ router.post("/:gameId/challenge-result", async (req, res) => {
         state.currentPlayerIndex,
         getLongestFormedWord(state.formedWords),
       );
-      Object.assign(game, Game.fromEngineState(newState));
-      await game.save();
-      return res.json({
-        success: true,
-        gameId: game.gameId,
-        state: safeState(game.toEngineState()),
-      });
+      return await commit(newState);
     } else {
       // Word is NOT valid — return tiles to Player 1's rack, reset board to confirmed
       const placedTiles = state.placedTiles ?? [];
@@ -670,7 +669,7 @@ router.post("/:gameId/challenge-result", async (req, res) => {
       );
       const newLog = [
         ...(state.gameLog ?? []),
-        `${state.players[state.currentPlayerIndex].displayName}: невалиден збор — плочки вратени`,
+        formatGameLog({ type: "challenge-invalid", player: state.players[state.currentPlayerIndex] }),
       ];
 
       const next = (state.currentPlayerIndex + 1) % state.players.length;
@@ -685,13 +684,7 @@ router.post("/:gameId/challenge-result", async (req, res) => {
         status: "playing",
         currentPlayerIndex: next,
       };
-      Object.assign(game, Game.fromEngineState(newState));
-      await game.save();
-      return res.json({
-        success: true,
-        gameId: game.gameId,
-        state: safeState(game.toEngineState()),
-      });
+      return await commit(newState);
     }
   } catch (err) {
     console.error("challenge-result error:", err);
@@ -725,7 +718,7 @@ router.post("/:gameId/bonus-answer", async (req, res) => {
     const { choice } = req.body;
     if (choice === -1) {
       game.gameLog.push(
-        `${player.displayName}: бонус прашање за „${pendingBonus.word}“ — откажано`,
+        formatGameLog({ type: "bonus", player, word: pendingBonus.word, outcome: "declined" }),
       );
       game.pendingBonus = null;
       game.markModified("pendingBonus");
@@ -754,7 +747,7 @@ router.post("/:gameId/bonus-answer", async (req, res) => {
     if (correct) player.score = (player.score ?? 0) + 5;
 
     game.gameLog.push(
-      `${player.displayName}: бонус прашање за „${pendingBonus.word}“ — ${correct ? "точен одговор (+5)" : "погрешен одговор"}`,
+      formatGameLog({ type: "bonus", player, word: pendingBonus.word, outcome: correct ? "correct" : "incorrect" }),
     );
     game.pendingBonus = null;
     game.markModified("pendingBonus");
