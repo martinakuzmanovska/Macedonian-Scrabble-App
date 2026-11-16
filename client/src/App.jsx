@@ -27,6 +27,7 @@ function AppNavbar({ user, onLogin, onLogout, onOpenLeaderboard, onOpenProfile }
                   encodeURIComponent(user.displayName || "Player") +
                   "&background=49634e&color=fff"
               }
+              onClick={onOpenProfile}
               alt="Profile"
               className="app-navbar-avatar"
             />
@@ -38,23 +39,18 @@ function AppNavbar({ user, onLogin, onLogout, onOpenLeaderboard, onOpenProfile }
             </div>
           </div>
 
-          <div className="app-navbar-stats">
-            <span>Active</span>
-            <span>Rank: Amateur</span>
-            <span>Games: {user.gamesPlayed || 0}</span>
-          </div>
         </>
       )}
 
       <div className="app-navbar-actions">
         {user ? (
           <>
-            <button
+            {/* <button
               className="app-navbar-button app-navbar-logout"
               onClick={onOpenProfile}
             >
               Мој профил
-            </button>
+            </button> */}
             <button
               className="app-navbar-button app-navbar-leaderboard"
               onClick={onOpenLeaderboard}
