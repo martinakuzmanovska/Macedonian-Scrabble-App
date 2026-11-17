@@ -19,13 +19,14 @@ import gamesRoute     from "./routes/games.js";
 
 const app    = express();
 const server = http.createServer(app);
+const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
 
 const io = new SocketIO(server, {
-  cors: { origin: "http://localhost:5173", credentials: true },
+  cors: { origin: clientUrl, credentials: true },
 });
 
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: clientUrl,
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
   credentials: true,
