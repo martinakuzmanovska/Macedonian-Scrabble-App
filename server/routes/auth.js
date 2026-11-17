@@ -13,12 +13,12 @@ router.get("/google",
 
 // ── Google redirects back here after consent ─
 router.get("/google/callback",
-  passport.authenticate("google", {
-    failureRedirect: "http://localhost:5173?auth=failed",
-  }),
+  (req, res, next) => passport.authenticate("google", {
+    failureRedirect: new URL("?auth=failed", process.env.CLIENT_URL || "http://localhost:5173").href,
+  })(req, res, next),
   (_req, res) => {
     // Success — send user back to the app
-    res.redirect("http://localhost:5173");
+    res.redirect(process.env.CLIENT_URL || "http://localhost:5173");
   }
 );
 

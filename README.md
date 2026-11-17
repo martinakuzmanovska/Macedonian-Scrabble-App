@@ -449,7 +449,20 @@ Working directory matters for `.env`. Script is node app.js; no backend dev/watc
 npm --prefix client run dev
 ```
 
-Open `http://localhost:5173`. [Vite](client/vite.config.js) proxies `/api` to localhost:3000. Keep 5173 for hardcoded CORS/redirects; resolve port conflicts if Vite selects another port.
+Open `http://localhost:5173`. [Vite](client/vite.config.js) proxies `/api` to localhost:3000. For another frontend origin, set `CLIENT_URL` accordingly.
+
+### Forwarded ports and Google login
+
+Open the forwarded frontend URL. Vite proxies `/api`, including Google login, to port 3000; forwarding the backend separately is unnecessary for this setup.
+
+In `server/.env`, set both variables to your forwarded **frontend** origin, without a trailing slash:
+
+```dotenv
+CLIENT_URL=https://your-forwarded-frontend.example
+SERVER_URL=https://your-forwarded-frontend.example
+```
+
+Register exactly `https://your-forwarded-frontend.example/api/auth/google/callback` in your Google OAuth web client's authorized redirect URIs. Restart the backend after changing the environment. Sending the callback through the frontend proxy keeps the session cookie on the same host as the app's API requests. Update both variables and Google's redirect URI whenever the forwarded hostname changes.
 
 ```sh
 curl http://localhost:3000/api/health
@@ -480,7 +493,7 @@ Consumers: [app](server/app.js), [Passport](server/config/passport.js), Anthropi
 | SERVER_URL | Required for correct callback | Callback prefix | `http://localhost:3000` |
 | ANTHROPIC_API_KEY | AI required; classic human play optional | SDK authentication | `<anthropic-api-key>` |
 | GEMINI_API_KEY | Unused existing config entry | No active consumer | `<unused-do-not-configure>` |
-| CLIENT_URL | Unused existing config entry | Does not override CORS/redirects | `http://localhost:5173` |
+| CLIENT_URL | Optional, backend | Frontend origin for CORS and login redirects; defaults to localhost:5173 | `http://localhost:5173` |
 | CHROME_PATH | Optional, browser test | Chrome executable override | `C:/path/to/chrome.exe` |
 
 Safe server/.env template:
@@ -493,7 +506,7 @@ SERVER_URL=http://localhost:3000
 ANTHROPIC_API_KEY=<anthropic-api-key>
 ```
 
-Replace placeholders locally; keep secrets out of browser variables/version control. PORT/MONGO_URI/CLIENT_URL are not implemented overrides for hardcoded settings. Existing secret values were not reproduced.
+Replace placeholders locally; keep secrets out of browser variables/version control. PORT/MONGO_URI are not implemented overrides for hardcoded settings. Existing secret values were not reproduced.
 
 ## Testing and code quality
 
@@ -550,7 +563,7 @@ Gaps include live scraping/OAuth/models, questions, rules parity across duplicat
 | Missing cors | App imports undeclared direct dependency; maintenance fix needed; no manifest changed here |
 | Mongo errors/stalled requests | Check local 27017. DB/session target hardcoded; env URI does not override it. Health may still say ok |
 | Session/Google config error | Supply backend variables/start in server; dotenv file overrides process values |
-| OAuth callback mismatch/wrong origin | Match SERVER_URL plus callback path to Google; return redirects still localhost:5173; CLIENT_URL unused |
+| OAuth callback mismatch/wrong origin | Match SERVER_URL plus callback path to Google; set CLIENT_URL to the frontend origin. For forwarded development, use the frontend origin for both variables so the callback uses Vite's API proxy |
 | API 401 | Check auth/me, cookie, Mongo session, same-origin proxy; sign in again |
 | Waiting invitation | Every human slot needs account; polls every three seconds; use separate browser profiles/incognito |
 | Interrupted connection | Poll retries; reload restores saved state, loses unsent tiles; resolve pending challenge before actions |
