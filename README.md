@@ -18,11 +18,7 @@ This guide describes the implementation, including differences between reusable 
 - [External services and AI integration](#external-services-and-ai-integration)
 - [Local setup](#local-setup)
 - [Environment variables](#environment-variables)
-- [Testing and code quality](#testing-and-code-quality)
-- [Troubleshooting](#troubleshooting)
-- [Current limitations and future work](#current-limitations-and-future-work)
-- [Thesis relevance](#thesis-relevance)
-- [License and attribution](#license-and-attribution)
+
 
 ## Project overview
 
@@ -492,9 +488,8 @@ Consumers: [app](server/app.js), [Passport](server/config/passport.js), Anthropi
 | GOOGLE_CLIENT_SECRET | Required for login | OAuth secret | `<google-client-secret>` |
 | SERVER_URL | Required for correct callback | Callback prefix | `http://localhost:3000` |
 | ANTHROPIC_API_KEY | AI required; classic human play optional | SDK authentication | `<anthropic-api-key>` |
-| GEMINI_API_KEY | Unused existing config entry | No active consumer | `<unused-do-not-configure>` |
 | CLIENT_URL | Optional, backend | Frontend origin for CORS and login redirects; defaults to localhost:5173 | `http://localhost:5173` |
-| CHROME_PATH | Optional, browser test | Chrome executable override | `C:/path/to/chrome.exe` |
+
 
 Safe server/.env template:
 
@@ -508,115 +503,3 @@ ANTHROPIC_API_KEY=<anthropic-api-key>
 
 Replace placeholders locally; keep secrets out of browser variables/version control. PORT/MONGO_URI are not implemented overrides for hardcoded settings. Existing secret values were not reproduced.
 
-## Testing and code quality
-
-Supported package commands from root:
-
-```sh
-npm --prefix client test
-npm --prefix server test
-npm --prefix client run lint
-npm --prefix client run build
-npm --prefix server run test:browser
-```
-
-Preserved [test guide](server/test/README.md) details fixtures/manual two-browser walkthrough. Backend tests need MongoDB, create unique databases, and drop those on normal cleanup. Deterministic racks/cache and test-only Passport login avoid external Google/model/dictionary calls. Test login/rack/shutdown routes are never mounted by production app.js.
-
-| Coverage | Files |
-| --- | --- |
-| Initial state, placement/removal, scoring/bingo, turns, exchanges, challenge helpers, ending, turn cycle | [Engine harness](client/src/test.js) |
-| Macedonian normalization, dates, authenticated dictionary fetch/errors/cancellation | [Dictionary helpers](client/src/services/dictionaryService.test.js) |
-| Human/AI log consistency and model conversion | [Log tests](server/game/formatGameLog.test.js) |
-| Ownership, repeats, simultaneous resolution, retries/write-outage recovery | [Dictionary regression](server/services/personalDictionary.test.js) |
-| Two sessions: create/join/confirm/challenge/finalize/poll, privacy/logout/crosswords/invalid/missing/inconclusive results | [Multiplayer regression](server/test/multiplayerDictionary.test.js) |
-| Chrome multiplayer/profile/search/history/refresh/accounts/API error-retry | [Browser test](server/test/profileBrowser.py) |
-
-Browser test requires Python, Chrome, Python websocket-client, and built client/dist. Chrome defaults to Windows installation or CHROME_PATH; script uses debugging protocol/test fixture instead of Google consent.
-
-### Checks actually run
-
-Environment: Windows, Node 20.12.2, npm 10.5.2, existing dependencies, reachable local MongoDB. No dependency installation or paid/live external calls.
-
-| Check | Result |
-| --- | --- |
-| npm --prefix client test | Blocked: spawn EPERM before files ran |
-| npm --prefix server test | Blocked: spawn EPERM before files ran |
-| node client/src/test.js | Passed: 40 assertions, zero failures |
-| node client/src/services/dictionaryService.test.js | Passed: 7 tests including nested cases |
-| node server/game/formatGameLog.test.js | Passed: 3 tests |
-| node server/services/personalDictionary.test.js | Passed: 1 regression; injected outage log expected |
-| node server/test/multiplayerDictionary.test.js | Passed: 11 tests including nested cases |
-| npm --prefix client run lint | Failed: 7 errors/1 warning; unused variables/props/imports, browser-global process, hook dependency |
-| npm --prefix client run build | Failed: unsupported Node warning and spawn EPERM loading config through esbuild |
-| Browser test | Not run; a new frontend build could not be produced |
-
-Direct execution avoided restricted test-runner child spawning; npm test itself did not pass. Build failure does not establish a source compilation defect; runtime mismatch/process restrictions need resolving first.
-
-Gaps include live scraping/OAuth/models, questions, rules parity across duplicated paths, broad action/input validation, and concurrent AI. Client-engine tests alone cannot prove active React/all routes behave identically.
-
-## Troubleshooting
-
-| Symptom | Repository-supported explanation/action |
-| --- | --- |
-| Root npm fails | Separate server/client packages; no root package.json |
-| Vite rejects Node/esbuild cannot launch | Use supported Node (20.19+ or 22.12+); spawn EPERM also indicates process restriction |
-| Missing cors | App imports undeclared direct dependency; maintenance fix needed; no manifest changed here |
-| Mongo errors/stalled requests | Check local 27017. DB/session target hardcoded; env URI does not override it. Health may still say ok |
-| Session/Google config error | Supply backend variables/start in server; dotenv file overrides process values |
-| OAuth callback mismatch/wrong origin | Match SERVER_URL plus callback path to Google; set CLIENT_URL to the frontend origin. For forwarded development, use the frontend origin for both variables so the callback uses Vite's API proxy |
-| API 401 | Check auth/me, cookie, Mongo session, same-origin proxy; sign in again |
-| Waiting invitation | Every human slot needs account; polls every three seconds; use separate browser profiles/incognito |
-| Interrupted connection | Poll retries; reload restores saved state, loses unsent tiles; resolve pending challenge before actions |
-| Challenge 409 | Pending ID changed/already resolved; fetch state; matching receipt retry can retrieve result |
-| Dictionary failure/surprising invalid | Check lookup errors/cache; first-result/HTML selectors may reject words; no auto-refresh/admin endpoint |
-| Empty personal dictionary | Only this account's valid/defined challenges against another human qualify |
-| Profile 503 | Retry rereads/replays durable receipts after recovery failure |
-| AI/word-info failure | Inspect SDK errors/key/model access; no Gemini fallback; exhausted candidates may pass, API errors may return 500 |
-| No question | Human bonus mode/score >10/valid model response needed; AI/immediate-finalize paths do not generate |
-| Different ending scores | Inline multiplayer bypasses engine records/final adjustments |
-
-## Current limitations and future work
-
-### Confirmed limitations
-
-- Human confirmation trusts submitted board/score beyond actor/status/extraction checks; responses expose all racks/bag order.
-- Rules/transitions are duplicated; multiplayer record tracking and ending differ from engine.
-- Only selected word is dictionary-checked; acceptance does not validate. Invalid rollback assumes local previews.
-- Active creation fixes age 25. Older two-to-four-player setup controls are unmounted; model/service capacity is not a verified exposed home flow.
-- No connected thematic scoring, offline mode, gameplay sockets, disconnect policy, background AI scheduler, or finished-game history screen found.
-- Cache lacks expiry; scraper depends on HTML; receipt/history has no bounded retention policy.
-- Ordinary actions/AI lack challenge resolution's conditional guard.
-- Settings partly hardcoded, direct cors declaration missing, lint fails, full hosting absent.
-
-These findings follow specific paths, not a claim every ordinary game fails. Live source/model availability and deployment remain unverified.
-
-### Suggested improvements
-
-1. Consolidate shared rules and enforce rack/geometry/score validation server-side to reduce drift/untrusted results.
-2. Return player-specific public state and enforce lifecycle/actor checks consistently.
-3. Unify finalization/ending with regressions for records, blanks/crosswords, empty bag/rack, passing, and both placement/rollback API styles.
-4. Extend conditional updates/versioning to AI/ordinary turns for safe concurrent requests/retries.
-5. Add scraper fixtures/timeouts/cache refresh and inconclusive results for unexpected HTML; review source permissions before redistribution.
-6. Expose deliberate difficulty and evaluate question quality/learning before educational effectiveness claims.
-7. Parameterize deployment, declare direct dependencies, add safe .env.example, establish repeatable build/tests.
-
-## Thesis relevance
-
-| Area | Discussion supported by implementation |
-| --- | --- |
-| Architecture | React/Express/Mongo responsibilities, service/route boundaries, duplicated rules/tradeoffs |
-| Rules | Geometry/extraction/multipliers/blanks/exchanges/challenges/custom bonuses; engine versus active routes |
-| Synchronization | Tentative versus persisted state, polling, pending identity, conditional resolution, retries, durable outbox |
-| Macedonian adaptation | Alphabet/frequencies/values, canonical Unicode/case normalization, localized UI/history |
-| Dictionary | HTML parsing, exact matches, cache, placeholders, source-dependent failures |
-| AI | Vocabulary suggestions plus local enumeration/scoring/filtering; prompt difficulty versus UI exposure |
-| Education | Definitions, rich info, contextual questions, personal vocabulary/history, account privacy |
-| Testing | Engine assertions, session APIs, recovery/concurrency regressions, browser design/gaps |
-
-Code supports an implementation study/design discussion. Novelty, optimal tile distribution, performance, usability, AI strength, and learning outcomes require separate evaluation.
-
-## License and attribution
-
-No standalone LICENSE or repository-wide attribution document found. [server/package.json](server/package.json) declares ISC; private client manifest has no license field. This metadata is insufficient to assert a clear repository-wide license or invent one.
-
-Code identifies makedonski.gov.mk as challenge source. Word-info prompts name Macedonian Wiktionary/Wikipedia/dictionaries but do not implement reliable structured citations. Google supplies login, Anthropic models, ui-avatars.com fallback avatars. This guide grants no rights to external data or Scrabble name and invents no missing author/data-license attributions.
