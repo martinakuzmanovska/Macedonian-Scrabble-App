@@ -213,15 +213,17 @@ sequenceDiagram
     participant DB as MongoDB
     participant B as Opponent browser
     participant D as Dictionary service
+
     A->>A: Local placement and score preview
     A->>API: POST /games/:id/confirm
     API->>DB: Save pending board and pendingMoveId
     API-->>A: Challenge state
     B->>API: GET /games/:id (poll)
     API-->>B: Pending words and score
+
     alt Accept
         B->>API: POST /games/:id/finalize
-        API->>DB: Conditional finalize; clear pending ID
+        API->>DB: Conditional finalize and clear pending ID
     else Challenge selected word
         B->>API: POST challenge-result {pendingMoveId,wordIndex}
         API->>D: Cached lookup or scrape
@@ -230,6 +232,7 @@ sequenceDiagram
         API->>DB: Deliver qualifying dictionary entry
         API-->>B: Result and state
     end
+
     A->>API: GET /games/:id (poll)
     API-->>A: Updated state
 ```
