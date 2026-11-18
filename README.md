@@ -239,16 +239,16 @@ Paths are relative to `/api`. Results stay visible until acknowledged; polling t
 [useAIMove](client/src/hooks/useAIMove.js) posts `/games/:id/ai-turn`. Route checks participation, AI turn, playing status, and no pending question/placements. It loads persisted board/rack, calls [generation](server/routes/aiMove.js), applies/finalizes/advances through engine or passes, saves, and returns state. Browser replaces its display. This is browser-triggered, not a background loop.
 
 ```mermaid
-flowchart TD
-    A["Вчитување на таблата и плочките"] --> B["ВИ предлага зборови"]
-    B --> C["Пребарување позиции и рангирање според поени"]
-    C --> D["Речничка проверка на кандидатите"]
-    D --> E{"Пронајден е валиден потег?"}
-    E -->|Да| F["Примена на потегот"]
-    E -->|Не| G{"Преостанува обид?"}
-    G -->|Да| B
-    G -->|Не| H["Прескокнување на потегот"]
-    F --> I["Ажурирање и зачувување на играта"]
+flowchart LR
+    A["Load board and rack"] --> B["AI suggests words"]
+    B --> C["Find placements and rank by score"]
+    C --> D["Check candidates in dictionary"]
+    D --> E{"Valid move found?"}
+    E -->|Yes| F["Apply move"]
+    E -->|No| G{"Retry available?"}
+    G -->|Yes| B
+    G -->|No| H["Pass turn"]
+    F --> I["Update and save game"]
     H --> I
 ```
 
