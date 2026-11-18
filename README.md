@@ -76,7 +76,6 @@ Resolved versions come from [client/package-lock.json](client/package-lock.json)
 
 MongoDB is external; its server version is not pinned. `cors` is actively imported and locked at 2.8.6, but **absent from the server manifest's direct dependencies**. Present transitive availability is not a reliable declaration of an application dependency.
 
-`@google/genai` 2.21.0 is declared/locked, but no active import or Gemini call was found. React type packages are development dependencies; source is JavaScript/JSX, not TypeScript. Tests use Node's built-in facilities rather than Jest/Vitest.
 
 ## Architecture
 
@@ -242,6 +241,29 @@ Paths are relative to `/api`. Results stay visible until acknowledged; polling t
 ### AI move
 
 [useAIMove](client/src/hooks/useAIMove.js) posts `/games/:id/ai-turn`. Route checks participation, AI turn, playing status, and no pending question/placements. It loads persisted board/rack, calls [generation](server/routes/aiMove.js), applies/finalizes/advances through engine or passes, saves, and returns state. Browser replaces its display. This is browser-triggered, not a background loop.
+```mermaid
+flowchart TD
+    A["AI opponent's turn"] --> B["Load saved board and AI rack"]
+    B --> C["Request candidate words from AI"]
+    C --> D["Search horizontal and vertical placements"]
+    D --> E["Check available tiles and placement rules"]
+    E --> F["Rank legal placements by score"]
+    F --> G{"Next candidate available?"}
+
+    G -->|Yes| H["Dictionary check for all formed words"]
+    H --> I{"All words valid?"}
+    I -->|No| G
+    I -->|Yes| J["Apply move and update score"]
+
+    G -->|No| K{"Two attempts completed?"}
+    K -->|No| C
+    K -->|Yes| L["Pass and advance turn"]
+
+    J --> M["Refill rack and advance turn"]
+    M --> N["Save updated game state"]
+    L --> N
+    N --> O["Return updated state to browser"]
+```
 
 ### Word information
 
