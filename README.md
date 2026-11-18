@@ -207,33 +207,29 @@ Valid words with usable definitions enter the **challenger's** dictionary, not t
 
 ```mermaid
 sequenceDiagram
-    participant A as Mover browser
-    participant API as Game routes
-    participant DB as MongoDB
-    participant B as Opponent browser
-    participant D as Dictionary service
+    participant A as Играч 1
+    participant S as Сервер
+    participant B as Играч 2
+    participant D as Речник
 
-    A->>A: Local placement and score preview
-    A->>API: POST /games/:id/confirm
-    API->>DB: Save pending board and pendingMoveId
-    API-->>A: Challenge state
-    B->>API: GET /games/:id (poll)
-    API-->>B: Pending words and score
+    A->>S: Поднесување потег
+    S->>S: Зачувување потег што чека одлука
+    B->>S: Периодично преземање состојба
+    S-->>B: Зборови и поени
 
-    alt Accept
-        B->>API: POST /games/:id/finalize
-        API->>DB: Conditional finalize and clear pending ID
-    else Challenge selected word
-        B->>API: POST challenge-result {pendingMoveId,wordIndex}
-        API->>D: Cached lookup or scrape
-        D-->>API: Verdict and definition
-        API->>DB: Conditional resolution and receipt
-        API->>DB: Deliver qualifying dictionary entry
-        API-->>B: Result and state
+    alt Прифаќање
+        B->>S: Прифати потег
+        S->>S: Потврдување на потегот
+    else Оспорување
+        B->>S: Оспори избран збор
+        S->>D: Проверка на зборот
+        D-->>S: Валидност и дефиниција
+        S->>S: Примена на исходот
+        S-->>B: Резултат од проверката
     end
 
-    A->>API: GET /games/:id (poll)
-    API-->>A: Updated state
+    A->>S: Периодично преземање состојба
+    S-->>A: Ажурирана игра
 ```
 
 Paths are relative to `/api`. Results stay visible until acknowledged; polling then resumes state application. See [modal](client/src/components/ChallengeModal.jsx), [routes](server/routes/games.js), [delivery](server/services/personalDictionary.js).
@@ -241,28 +237,19 @@ Paths are relative to `/api`. Results stay visible until acknowledged; polling t
 ### AI move
 
 [useAIMove](client/src/hooks/useAIMove.js) posts `/games/:id/ai-turn`. Route checks participation, AI turn, playing status, and no pending question/placements. It loads persisted board/rack, calls [generation](server/routes/aiMove.js), applies/finalizes/advances through engine or passes, saves, and returns state. Browser replaces its display. This is browser-triggered, not a background loop.
+
 ```mermaid
 flowchart TD
-    A["AI opponent's turn"] --> B["Load saved board and AI rack"]
-    B --> C["Request candidate words from AI"]
-    C --> D["Search horizontal and vertical placements"]
-    D --> E["Check available tiles and placement rules"]
-    E --> F["Rank legal placements by score"]
-    F --> G{"Next candidate available?"}
-
-    G -->|Yes| H["Dictionary check for all formed words"]
-    H --> I{"All words valid?"}
-    I -->|No| G
-    I -->|Yes| J["Apply move and update score"]
-
-    G -->|No| K{"Two attempts completed?"}
-    K -->|No| C
-    K -->|Yes| L["Pass and advance turn"]
-
-    J --> M["Refill rack and advance turn"]
-    M --> N["Save updated game state"]
-    L --> N
-    N --> O["Return updated state to browser"]
+    A["Вчитување на таблата и плочките"] --> B["ВИ предлага зборови"]
+    B --> C["Пребарување позиции и рангирање според поени"]
+    C --> D["Речничка проверка на кандидатите"]
+    D --> E{"Пронајден е валиден потег?"}
+    E -->|Да| F["Примена на потегот"]
+    E -->|Не| G{"Преостанува обид?"}
+    G -->|Да| B
+    G -->|Не| H["Прескокнување на потегот"]
+    F --> I["Ажурирање и зачувување на играта"]
+    H --> I
 ```
 
 ### Word information
